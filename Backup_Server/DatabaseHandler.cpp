@@ -56,3 +56,20 @@ void DatabaseHandler::createFileForUser(std::string username, std::string path, 
 	
 	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', " +  std::to_string(t) +", " + std::to_string(max) +" )";
 }
+
+void DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
+	if (! this->existsFile(username, path, fileName)) throw new std::exception("file does not exist");
+	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = ' " + username + " ')";
+	int count = 1, max = -1;
+	if (count == 0) max = 0;
+	else {
+		query = "SELECT MAX(Blob) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = ' " + username + " ')";
+		int queryResult = 33;
+		max = queryResult++;
+	}
+	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
+
+	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', " + std::to_string(t) + ", " + std::to_string(max) + " )";
+
+}
+

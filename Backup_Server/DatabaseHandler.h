@@ -41,5 +41,15 @@ public:
 		@warning : if file already exists an std::exception is thrown
 	*/
 	void createFileForUser(std::string, std::string, std::string);
+	
+	
+	/*
+	@param1 : username
+	@param2 : path
+	@param3 : fileName
+
+	@warning : if file already exists an std::exception is thrown
+	*/
+	void createNewBlobForFile(std::string, std::string, std::string);
 };
 
