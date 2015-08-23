@@ -2,6 +2,9 @@
 #include <string>
 class DatabaseHandler
 {
+private:
+	SQLHDBC hdbc; // connection handle
+	SQLHENV env;  // enviroment handle
 public:
 	DatabaseHandler();
 	~DatabaseHandler();
