@@ -21,9 +21,10 @@ DatabaseHandler::DatabaseHandler()
 	if(SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0) == SQL_ERROR ) throw new std::exception("registration as ODBC 3 not successfull");
 	// 3) allocate the handle for the connection (hdbc)
 	SQLAllocHandle(SQL_HANDLE_DBC, env, &hdbc);
-	// 4) connect to the driver. L"" means that the driver will ask for all (db, user, pass) (hope so!). 
-	// TODO: MODIFIY THIS
-	if(SQLDriverConnect(hdbc, GetDesktopWindow(), L"", SQL_NTS, NULL, 0, NULL, SQL_DRIVER_COMPLETE) == SQL_ERROR ) throw new std::exception("impossible to connect to the driver");
+	// 4) connect to the driver. The String is the one getted in the properties of the sql server.
+	
+	if(SQLDriverConnect(hdbc, GetDesktopWindow(), L"Data Source = (localdb)\v11.0; Initial Catalog = master; Integrated Security = True; Connect Timeout = 30; Encrypt = False; TrustServerCertificate = False; ApplicationIntent = ReadWrite; MultiSubnetFailover = False", SQL_NTS, NULL, 0, NULL, SQL_DRIVER_COMPLETE) == SQL_ERROR ) throw new std::exception("impossible to connect to the driver");
+	
 }
 
 
@@ -44,16 +45,26 @@ DatabaseHandler::~DatabaseHandler()
 
 
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
+	
+	SQLHSTMT hStmt;
+	SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt); // Created the handle for a statement. todo: check the result
 
+	/* TODO: HERE I SHOULD CALCULATE AN HASH ON THE PASSWORD
+	
 	HCRYPTPROV provider;
 	LPCTSTR pszContainerName = TEXT("My Sample Key Container");
 	if (!CryptAcquireContext(&provider, nullptr, pszContainerName, PROV_RSA_FULL, 0))
 		throw new std::exception("Impossible to acquire the cryptographic provider");
 
+	*/
 	
 
 	std::string query = "INSERT INTO USERS (username, password, basedir) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
-	// todo: execute the query!
+
+	
+	SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+
+	// todo: todo: check the result
 	// todo : use precompiled queries or check for avoid SQL INJECTION
 }
 
