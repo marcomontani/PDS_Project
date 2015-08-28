@@ -4,7 +4,6 @@
 #include <stdexcept>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <stdio.h>
 
 #pragma comment(lib, "Ws2_32.lib") // this line asks to the compiler to use the library ws2_32.lib
 
@@ -54,6 +53,7 @@ void ConnectionHandler::uploadFile() {
 
 	wchar_t* buffer = new wchar_t[1024];
 	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
+	
 	// i really hope that the name of a file is < 1 KB!
 
 	if (buffer[ricevuti] != '\n') {
@@ -72,11 +72,19 @@ void ConnectionHandler::uploadFile() {
 	recv(connectedSocket, (char*)&dimension, sizeof(int), 0);
 
 	while (dimension > 0) {
-		ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
+		ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);	
 		writer.write(buffer, ricevuti);
 		dimension -= ricevuti;
 	}
 
 	// todo: now we have to calculate the checksum and compare it with the one received by the client
+}
+
+void ConnectionHandler::logIn() {
+
+}
+
+void ConnectionHandler::signIn() {
+
 }
 

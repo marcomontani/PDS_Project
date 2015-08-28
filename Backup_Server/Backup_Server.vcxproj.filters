@@ -33,6 +33,9 @@
     <ClInclude Include="resource.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="EncryptionHandler.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -45,6 +48,9 @@
       <Filter>File di origine</Filter>
     </ClCompile>
     <ClCompile Include="DatabaseHandler.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="EncryptionHandler.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
   </ItemGroup>

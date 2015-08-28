@@ -147,6 +147,7 @@
   <ItemGroup>
     <ClInclude Include="ConnectionHandler.h" />
     <ClInclude Include="DatabaseHandler.h" />
+    <ClInclude Include="EncryptionHandler.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -155,6 +156,7 @@
     <ClCompile Include="Backup_Server.cpp" />
     <ClCompile Include="ConnectionHandler.cpp" />
     <ClCompile Include="DatabaseHandler.cpp" />
+    <ClCompile Include="EncryptionHandler.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

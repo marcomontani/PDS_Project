@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <sql.h>
+
 class DatabaseHandler
 {
 private:

@@ -1,10 +1,8 @@
 #include "stdafx.h"
 #include "DatabaseHandler.h"
 
-#include <windows.security.cryptography.h>
-#include <windows.security.cryptography.core.h>
-#include <windows.storage.streams.h>
 
+#include <windows.storage.streams.h>
 #include <sql.h>
 #include <sqlext.h>
 #include <sal.h>
@@ -54,14 +52,7 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 		 SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
 		)  throw new std::exception("impossible to create a statement handle");
 
-	/* TODO: HERE I SHOULD CALCULATE AN HASH ON THE PASSWORD
 	
-	HCRYPTPROV provider;
-	LPCTSTR pszContainerName = TEXT("My Sample Key Container");
-	if (!CryptAcquireContext(&provider, nullptr, pszContainerName, PROV_RSA_FULL, 0))
-		throw new std::exception("Impossible to acquire the cryptographic provider");
-
-	*/
 	
 
 	std::string query = "INSERT INTO USERS (username, password, basedir) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
@@ -176,8 +167,7 @@ void DatabaseHandler::createFileForUser(std::string username, std::string path, 
 	// now i need to create the blob
 	// how many blobs can i count for that file?
 	query = "SELECT COUNT(*) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')";
-	// todo: maybe this is wrong and i should count the blobs for the user.		\
-	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
+	// todo: maybe this is wrong and i should count the blobs for the user.	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
 
 	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 	if (ret != SQL_SUCCESS) {
@@ -205,10 +195,9 @@ void DatabaseHandler::createFileForUser(std::string username, std::string path, 
 	if (count == 0) max = 0;
 	else {
 		query = "SELECT MAX(Blob) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')"; 
-		// todo: myght be wrong. blob should be independent from the file, but depend only from the user!!  \
-			query = SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "')";
-		// todo: should we add	\
-		where Blob not null ??
+		// todo: myght be wrong. blob should be independent from the file, but depend only from the user!!  
+		// query = SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "')";
+		// todo: should we add	where Blob not null ??
 		ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 		if (ret != SQL_SUCCESS) {
 			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
