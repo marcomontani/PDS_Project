@@ -1,8 +1,10 @@
 #pragma once
-#include <string>
+#include <wincrypt.h>
 
 class EncryptionHandler
 {
+	HCRYPTHASH hHash = 0;
+	HCRYPTPROV provider;
 public:
 	EncryptionHandler();
 	~EncryptionHandler();
