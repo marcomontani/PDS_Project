@@ -38,15 +38,25 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 
 void ConnectionHandler::uploadFile() {
 	
+	if (!logged) {
+		// todo: send error message
+		return;
+	}
+
 	// first of all we need to read the filename
-	// we assume it is terminated with the character '\n'
+	// we assume it is terminated with the character '\n' and is the complete filepath + filename
 
 	wchar_t* buffer = new wchar_t[1024];
 	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
 	
 	// i really hope that the name of a file is < 1 KB!
 
-	if (ricevuti == 1024) {
+	if (ricevuti == 0) {
+		// maybe trigger an exception here!
+		return;
+	}
+
+	if (ricevuti >= 262) {
 		std::cout << "Errore! Nome troppo lungo";
 		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
 		delete[] buffer;
@@ -61,15 +71,42 @@ void ConnectionHandler::uploadFile() {
 		return; // todo: or throw an exception?
 	}
 
-	// todo: check ricevuto != 0
-	buffer[ricevuti] = '\0';
+	buffer[ricevuti-1] = '\0';
+
+	wchar_t *drive = new wchar_t[2], // example C:
+			*directory = new wchar_t[200], 
+			*filename = new wchar_t[50], 
+			*extension = new wchar_t[10];
+	_wsplitpath_s(buffer, drive, 2, directory, 200, filename, 50, extension, 10);
+	
+	
+
+	std::wstring path (drive);
+	path += L"//";
+	path += directory;
+
+	std::wstring file(filename);
+	file += L".";
+	file += extension;
+
+	int blob;
+	if (dbHandler.existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
+		blob = dbHandler.createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+	else
+		blob = dbHandler.createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 
 
-	// todo: check if the file exists and do the right operation on the database
+	// todo: finish here
 
 	send(connectedSocket, "OK", 3, 0);
 
-	std::wfstream writer(buffer, std::ios::binary); // open the stream on the file, that is a binary stream
+
+	// todo: i need to know where the hell the main folder is!
+
+	std::wstring writerPath(L"C://BackupFolders/");
+	writerPath += std::to_wstring(blob);
+
+	std::wfstream writer(writerPath, std::ios::binary); // open the stream on the file, that is a binary stream
 	unsigned int dimension;
 	recv(connectedSocket, (char*)&dimension, sizeof(int), 0);
 
@@ -80,10 +117,25 @@ void ConnectionHandler::uploadFile() {
 	}
 
 	// todo: now we have to calculate the checksum and compare it with the one received by the client
+	// the checksum calculated with sha1 has always the same length: 20 bytes
+
+
+	int checksumToRead = 20;
+	int offset = 0;
+	while (checksumToRead > 0) {
+		ricevuti = recv(connectedSocket, (char*)buffer + offset, checksumToRead, 0);
+		offset += ricevuti;
+		checksumToRead -= ricevuti;
+	}
+
+
+
+
+
 }
 
 void ConnectionHandler::logIn() {
-	DatabaseHandler d; 
+	
 	// todo: check this
 	// i assume it will arrive "username password"
 
@@ -117,15 +169,16 @@ void ConnectionHandler::logIn() {
 		return;
 	}
 
-	bool logged = d.logUser(username, password);
+	bool logged = dbHandler.logUser(username, password);
 
 	// todo: ok now i am logged. study how to use this information
 	logged = true;
+	user = username;
 
 }
 
 void ConnectionHandler::signIn() {
-	DatabaseHandler d;
+	
 	// todo: check this
 	// i assume it will arrive "username password"
 
@@ -160,7 +213,7 @@ void ConnectionHandler::signIn() {
 		}
 
 	try {
-		d.registerUser(credentials[0], credentials[1], credentials[2]);
+		dbHandler.registerUser(credentials[0], credentials[1], credentials[2]);
 	}
 	catch (std::exception e) {
 		std::cout << "error: " << e.what();
@@ -181,6 +234,7 @@ void ConnectionHandler::signIn() {
 
 	// if all has gone the right way
 	logged = true;
+	user = credentials[0];
 
 }
 

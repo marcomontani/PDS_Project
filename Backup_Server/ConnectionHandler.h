@@ -1,6 +1,7 @@
 #pragma once
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include "DatabaseHandler.h"
 
 class ConnectionHandler
 {
@@ -15,6 +16,8 @@ private:
 	void (ConnectionHandler::*functions [3] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
 	bool logged;
+	DatabaseHandler dbHandler;
+	std::string user;
 
 	// functions
 	void signIn();

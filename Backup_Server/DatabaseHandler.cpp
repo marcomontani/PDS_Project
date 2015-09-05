@@ -197,7 +197,7 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 	return number == 1;
 }
 
-void DatabaseHandler::createFileForUser(std::string username, std::string path, std::string fileName) {
+int DatabaseHandler::createFileForUser(std::string username, std::string path, std::string fileName) {
 	
 	if (this->existsFile(username, path, fileName)) throw new std::exception("file already exists");
 
@@ -282,9 +282,10 @@ void DatabaseHandler::createFileForUser(std::string username, std::string path, 
 	}
 
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+	return max;
 }
 
-void DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
+int DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
 	if (! this->existsFile(username, path, fileName)) throw new std::exception("file does not exist");
 
 	SQLHANDLE hStmt;
@@ -351,6 +352,7 @@ void DatabaseHandler::createNewBlobForFile(std::string username, std::string pat
 	}
 
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+	return max;
 }
 
 // todo: rename to deleteFile

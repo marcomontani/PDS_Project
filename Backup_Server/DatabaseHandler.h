@@ -38,7 +38,12 @@ public:
 	*/
 	std::string getUserFolder(std::string);
 
-
+	/*
+	function : existsFile
+	@param : username
+	@param : password
+	@param : filename
+	*/
 	bool existsFile(std::string, std::string, std::string);
 
 	/*
@@ -48,7 +53,7 @@ public:
 
 		@warning : if file already exists an std::exception is thrown
 	*/
-	void createFileForUser(std::string, std::string, std::string);
+	int createFileForUser(std::string, std::string, std::string);
 	
 	
 	/*
@@ -58,7 +63,7 @@ public:
 
 	@warning : if file already exists an std::exception is thrown
 	*/
-	void createNewBlobForFile(std::string, std::string, std::string);
+	int createNewBlobForFile(std::string, std::string, std::string);
 
 
 	/*
@@ -89,5 +94,7 @@ public:
 	Returns the string version of a collection of date of last modify for that file
 	*/
 	std::string getFileVersions(std::string, std::string, std::string);
+
+
 };
 
