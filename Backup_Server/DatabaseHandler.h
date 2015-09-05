@@ -29,11 +29,14 @@ public:
 
 
 	/*
-	function : getUserFileByName
+	function : getUserFolder
 	@param : username
-	@param : filePath ( path/filename )
+	This function returns for each file of the selected user:
+		1) path
+		2) name
+		3) lasted version (blob)
 	*/
-	std::string getUserFileByName(std::string, std::string, std::string);
+	std::string getUserFolder(std::string);
 
 
 	bool existsFile(std::string, std::string, std::string);
@@ -57,6 +60,15 @@ public:
 	*/
 	void createNewBlobForFile(std::string, std::string, std::string);
 
+
+	/*
+	@param1 : username
+	@param2 : path
+	@param3 : fileName
+
+	@warning : if file does not exist an std::exception is thrown
+	*/
+	void deleteFile(std::string, std::string, std::string);
 
 	/*
 	@param1 : username

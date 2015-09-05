@@ -110,6 +110,60 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 	
 }
 
+// this function return something like {[path1, file1, 22][path2, file2, 16]...[path_n, file_n, #]}
+std::string DatabaseHandler::getUserFolder(std::string username)
+{
+	SQLHANDLE hStmt;
+	std::string userFolder = "{";
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT name, path, Blob FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastUpdate = (\
+							SELECT  MAX(lastUpdate) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
+
+	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		// maybe throw an exception? 
+		return NULL;
+	}
+	std::string filename, path;
+	int blob;
+	SQLINTEGER filenameDimension, pathDimension, blobDimension;
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number
+		SQL_C_TCHAR, // want a string
+		(SQLPOINTER)filename.c_str(),  // put it here
+		50, // max dim of the string. in the example is 0, maybe it means "the necessary". // todo: check that
+		(SQLINTEGER*)&filenameDimension // the length of the string 
+		);
+
+	SQLBindCol(hStmt, // statement handle
+		1, // column number
+		SQL_C_TCHAR, // want a string
+		(SQLPOINTER)path.c_str(),  // put it here
+		50, // max dim of the string. in the example is 0, maybe it means "the necessary". // todo: check that
+		(SQLINTEGER*)&pathDimension // the length of the string 
+		);
+
+	SQLBindCol(hStmt, // statement handle
+		2, // column number
+		SQL_INTEGER, // want an int
+		(SQLPOINTER)&blob,  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		(SQLINTEGER*)&blobDimension // the length of the string 
+		);
+	while (SQLFetch(hStmt) != SQL_NO_DATA) {
+		userFolder += "["+filename+", "+path+","+std::to_string(blob)+"]";
+	}
+
+	userFolder += "}";
+
+	return userFolder;
+}
+
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
 	SQLHANDLE hStmt;
 	int number;
@@ -299,7 +353,8 @@ void DatabaseHandler::createNewBlobForFile(std::string username, std::string pat
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 }
 
-void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename)
+// todo: rename to deleteFile
+void DatabaseHandler::deleteFile(std::string username, std::string path, std::string filename)
 {
 	if (!existsFile(username, path, filename)) throw new std::exception("no file to delete");
 	
@@ -339,6 +394,32 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 	}
 	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
 	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', " + std::to_string(t) + ", NULL )";
+	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+}
+
+
+
+void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename) {
+	if (!existsFile(username, path, filename)) throw new std::exception("no file to delete");
+	// the file exist
+	SQLHANDLE hStmt;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+	
+	// 1st : i need to remove all its versions
+	std::string query = "DELETE FROM VERSIONS WHERE username = '" + username + "' AND path = '" + path+"' AND name = '"+filename+"'";
+	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("Impossible to remove the versions for the file");
+	}
+	query = "DELETE FROM FILE WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
+	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("Impossible to remove the versions for the file");
+	}
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 }
 
