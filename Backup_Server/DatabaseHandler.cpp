@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "DatabaseHandler.h"
 
+#include "DatabaseHandler.h"
 
 #include <windows.storage.streams.h>
 #include <sql.h>
@@ -421,6 +421,38 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 		throw new std::exception("Impossible to remove the versions for the file");
 	}
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+}
+
+std::string DatabaseHandler::getFileVersions(std::string username, std::string path, std::string filename)
+{
+	if (!existsFile(username, path, filename)) throw new std::exception("cannot find the file");
+	
+	SQLHANDLE hStmt;
+	time_t t;
+	SQLINTEGER d;
+	std::string versions = "{";
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT lastUpdate FROM VERSIONS WHERE Blob is not NULL AND username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
+	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) return nullptr;
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_TIME, // want an int 
+		(SQLPOINTER)&t,  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		&d // the length of the time ??
+		);
+
+	while (SQLFetch(hStmt) != SQL_NO_DATA) 
+		versions += ("[" + std::to_string(t) + "]");
+
+	versions += "}";
+	
+	return versions;
 }
 
 

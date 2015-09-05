@@ -78,5 +78,16 @@ public:
 	@warning : if file does not exist an std::exception is thrown
 	*/
 	void removeFile(std::string, std::string, std::string);
+
+	/*
+	@param1 : username
+	@param2 : path
+	@param3 : fileName
+
+	@warning : if file does not exist an std::exception is thrown
+
+	Returns the string version of a collection of date of last modify for that file
+	*/
+	std::string getFileVersions(std::string, std::string, std::string);
 };
 
