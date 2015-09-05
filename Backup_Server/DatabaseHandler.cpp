@@ -299,3 +299,49 @@ void DatabaseHandler::createNewBlobForFile(std::string username, std::string pat
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 }
 
+void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename)
+{
+	if (!existsFile(username, path, filename)) throw new std::exception("no file to delete");
+	
+	SQLHANDLE hStmt;
+	int validBlob;
+	SQLINTEGER d;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT COUNT(*) FROM (\
+							SELECT Blob FROM VERSION WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' AND lastUpdate = (\
+								SELECT MAX(lastUpdate) FROM VERSION  WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "')\
+						) WHERE Blob is not NULL";
+
+	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("could not see if last blob for that file was NULL");
+	}
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_INTEGER, // want an int 
+		(SQLPOINTER)&validBlob,  // put it here
+		0, // is 0, maybe it means "the necessary". // todo: check that
+		&d // the length of the int ??
+		);
+	if (SQLFetch(hStmt) == SQL_NO_DATA) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("error: cannot retrive how many files there are for the selected user");
+	}
+
+	if (validBlob == 0) { // means that last updted blob was null
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("trying to delete an already deleted file");
+	}
+	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
+	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', " + std::to_string(t) + ", NULL )";
+	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+}
+
+
+
+

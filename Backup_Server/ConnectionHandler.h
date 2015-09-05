@@ -11,9 +11,12 @@ public:
 	void prerformReqestedOperation(int);
 
 private:
-
+	// variables
 	void (ConnectionHandler::*functions [3] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
+	bool logged;
+
+	// functions
 	void signIn();
 	void logIn();
 	void uploadFile();

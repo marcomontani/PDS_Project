@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ConnectionHandler.h"
+#include "DatabaseHandler.h"
 #include <exception>
 #include <stdexcept>
 #include <winsock2.h>
@@ -10,20 +11,11 @@
 ConnectionHandler::ConnectionHandler(SOCKET s)
 {
 	connectedSocket = s;
+	logged = false;
 
-	/* SPOSTARE QUESTA ROBA PER L'INIZIALIZZAZIONE DELLA DLL DEI SOCKET NEL MAIN
-	WSADATA wsaData;
-	int iResult;
-
-	// Initialize Winsock
-	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (iResult != 0) {
-		std::cout << "WSAStartup failed: " << iResult << "\n";
-		throw new std::exception("failed to load the winsock library");
-	}
-
-	*/
 	functions[0] = &ConnectionHandler::logIn;
+	functions[1] = &ConnectionHandler::signIn;
+	functions[2] = &ConnectionHandler::uploadFile;
 }
 
 
@@ -41,8 +33,6 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 	}
 	
 	((*this).*(functions[op]))();
-
-
 }
 
 
@@ -56,10 +46,22 @@ void ConnectionHandler::uploadFile() {
 	
 	// i really hope that the name of a file is < 1 KB!
 
+	if (ricevuti == 1024) {
+		std::cout << "Errore! Nome troppo lungo";
+		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+		delete[] buffer;
+		return; // todo: or throw an exception?
+	}
+
 	if (buffer[ricevuti] != '\n') {
 		std::cout << "Errore! il filename non è arrivato correttamente";
 		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+
+		delete[] buffer;
+		return; // todo: or throw an exception?
 	}
+
+	// todo: check ricevuto != 0
 	buffer[ricevuti] = '\0';
 
 
@@ -81,10 +83,104 @@ void ConnectionHandler::uploadFile() {
 }
 
 void ConnectionHandler::logIn() {
+	DatabaseHandler d; 
+	// todo: check this
+	// i assume it will arrive "username password"
+
+	std::string username;
+	std::string password;
+
+	char* buffer = new char[100];
+
+	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	if (ricevuti == 100) {
+		std::cout << "Errore! credenziali troppo lunghe";
+	}
+
+	// todo: check ricevuto != 0
+
+	buffer[ricevuti] = '\0';
+
+	std::string* ptr = &username;
+	unsigned int i = 0;
+
+	for (i = 0; i < strlen(buffer); i++) {
+		if (buffer[i] == ' ') ptr = &password;
+		else ptr->append(1, buffer[i]);
+	}
+
+
+	delete[] buffer;
+
+	if (username.size() == 0 || password.size()== 0) {
+		std::cout << "Errore! Username o password non arrivati";
+		return;
+	}
+
+	bool logged = d.logUser(username, password);
+
+	// todo: ok now i am logged. study how to use this information
+	logged = true;
 
 }
 
 void ConnectionHandler::signIn() {
+	DatabaseHandler d;
+	// todo: check this
+	// i assume it will arrive "username password"
+
+	std::string credentials[3];
+
+	char* buffer = new char[100];
+
+	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	if (ricevuti == 100) {
+		std::cout << "Errore! credenziali troppo lunghe";
+	}
+
+	// todo: check ricevuto != 0
+
+	buffer[ricevuti] = '\0';
+
+	std::string* ptr = credentials;
+	unsigned int i = 0;
+
+	for (i = 0; i < strlen(buffer); i++) {
+		if (buffer[i] == ' ') ptr ++;
+		else ptr->append(1, buffer[i]);
+	}
+
+
+	delete[] buffer;
+
+	for (i = 0; i < 3; i++ )
+		if (credentials[i].size() == 0) {
+			std::cout << "Errore! Username o password non arrivati";
+			return;
+		}
+
+	try {
+		d.registerUser(credentials[0], credentials[1], credentials[2]);
+	}
+	catch (std::exception e) {
+		std::cout << "error: " << e.what();
+		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+		return;
+	}
+
+	// if i am here all the login procedure has succeded. now i need to create a folder for the specified user
+
+	std::string folderPath = "C://backupServer/";
+	folderPath += credentials[0]; // username
+
+	CreateDirectoryA(folderPath.c_str(), NULL); // create directory Ascii. the simple createDirectory wants the path as a wchart
+	
+	// todo: check if the folder has been created. if not... maybe it would be necessary to undo all what was done in the database!! 
+	// todo: make all this a transaction.
+
+
+	// if all has gone the right way
+	logged = true;
 
 }
 

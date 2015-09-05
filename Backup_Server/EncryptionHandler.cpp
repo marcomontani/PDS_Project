@@ -27,7 +27,7 @@ std::string EncryptionHandler::CalculateFileHash(std::string filePath) {
 	HANDLE file = CreateFile((LPCWSTR)filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 	if (file == INVALID_HANDLE_VALUE) throw new std::exception("invalid file");
 
-	
+	// todo: this creates a warning. why?
 	while (bResult = ReadFile(file, buffer, BUFSIZE, &cbRead, NULL)) {
 		if (!CryptHashData(hHash, buffer, cbRead, 0)) {
 			delete[] buffer;
@@ -46,7 +46,7 @@ std::string EncryptionHandler::CalculateFileHash(std::string filePath) {
 std::string EncryptionHandler::CalculateStringHash(std::string filePath) {
 	BYTE* buffer = new BYTE[BUFSIZE / 4]; // here i put the bytes of the checksum. 256 byte should do it
 	DWORD cbHash;  // dimension of the hash that has been returned to me
-	if(!CryptHashData(hHash, (BYTE*)filePath.c_str(), filePath.size, 0)) throw new std::exception("error while calculating hash of the string");
+	if(!CryptHashData(hHash, (BYTE*)filePath.c_str(), filePath.size(), 0)) throw new std::exception("error while calculating hash of the string");
 	if (!CryptGetHashParam(hHash, HP_HASHVAL, buffer, &cbHash, 0)) throw new std::exception("error: cannot retreive the checksum of string");
 	std::string result;
 	for (DWORD i = 0; i < cbHash; i++)
