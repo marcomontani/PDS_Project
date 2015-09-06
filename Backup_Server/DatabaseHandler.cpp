@@ -457,6 +457,102 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 	return versions;
 }
 
+void DatabaseHandler::addChecksum(std::string username, int blob, std::string checksum)
+{
+	SQLHANDLE hStmt;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "UPDATE VERSIONS SET checksum = '" + checksum + "' WHERE Blob = " + std::to_string(blob) + " AND username = '" + username + "'";
+	SQLExecDirectA(hStmt, (SQLCHAR*)query.c_str(), SQL_NTS);
+}
+
+std::string DatabaseHandler::getDeletedFiles(std::string username)
+{
+	SQLHANDLE hStmt;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT path, name, lastUpdate FROM VERSIONS V WHERE username = '" + username + "'AND Blob IS NULL AND lastUpdate = (\
+							SELECT MAX(lastUpdate) FROM VERSIONS WHERE username ='" + username + "' AND name = V.name AND path = V.path)";
+	SQLRETURN res = SQLExecDirectA(hStmt, (SQLCHAR*)query.c_str(), SQL_NTS);
+	if (res != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("sql: impossible to retreive deleted files");
+	}
+
+
+	std::string result = "{";
+	std::string path, name;
+	time_t t;
+	SQLINTEGER pathDim, nameDim, timeDim;
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_VARCHAR, // want an int 
+		(SQLPOINTER)path.c_str(),  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		&pathDim // the length of the time ??
+		);
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_VARCHAR, // want an int 
+		(SQLPOINTER)name.c_str(),  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		&nameDim // the length of the time ??
+		);
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_TIME, // want an int 
+		(SQLPOINTER)&t,  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		&timeDim // the length of the time ??
+		);
+
+
+	while (SQLFetch(hStmt) != SQL_NO_DATA)  result += ("[" + path + name + ",", std::to_string(t) + "]");
+	
+
+	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+	result += "}";
+
+	return result;
+}
+
+int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)
+{
+	SQLHANDLE hStmt;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT Blob from VERSIONS WHERE username = '"+username+"' AND path = '"+path+"' AND name='"+filename+"' AND lastUpdate="+datetime;
+	SQLRETURN res = SQLExecDirectA(hStmt, (SQLCHAR*)query.c_str(), SQL_NTS);
+	if (res != SQL_SUCCESS) throw new std::exception("sql: impossible to retreive deleted files");
+
+	// blob must be only one
+
+	int blob = -1;
+	SQLINTEGER d = sizeof(blob);
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_INTEGER, // want an int 
+		(SQLPOINTER)&blob,  // put it here
+		0, // in the example is 0, maybe it means "the necessary". // todo: check that
+		&d
+		);
+
+
+	SQLFetch(hStmt);
+	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+
+	return blob;
+}
+
 
 
 

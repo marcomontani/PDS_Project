@@ -136,7 +136,9 @@ void ConnectionHandler::uploadFile() {
 	std::string serverSHA = eHndler.CalculateFileHash(std::string(writerPath.begin(), writerPath.end()));
 	std::string clientSHA = (char*)buffer;
 
-	if (serverSHA != clientSHA) throw new std::exception("checksum is not equal");
+	if (serverSHA != clientSHA) throw new std::exception("checksum is not equal"); // todo: i should rollback to not have the database in a not valid state!
+
+	dbHandler.addChecksum(user, blob, clientSHA);
 
 	// it is all ok
 }
@@ -183,6 +185,111 @@ void ConnectionHandler::removeFile()
 
 	delete[] buffer;
 }
+
+/*
+	WARNING: this function is really identical to removeFile. just it is called dbelper.removeFile instead of dbHelper.deleteFile.
+				make them call the same function with an additional parameter could be better
+*/
+void ConnectionHandler::deleteFile()
+{
+	if (!logged) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+	bool messageFinished = false;
+	// we need to establish an end. for now it will be \r\n
+
+	while (!messageFinished) {
+		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
+		if (ricevuti == 0) {
+			delete[] buffer;
+			return; // todo: maybe create disconnectedException
+		}
+		if (ricevuti + offset == 1024) {
+			delete[] buffer;
+			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
+		}
+
+		// did i read it all?
+		for (int i = 0; i < offset + ricevuti; i++) {
+			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
+				buffer[i] = '\0';
+				messageFinished = true;
+			}
+		}
+
+		offset += ricevuti;
+	}
+
+	// now i need to split the 2 strings
+	int i = offset - 1; // last char
+	while (buffer[i] != '/') i--;
+	std::string filename(buffer + i);
+	buffer[i + 1] = '\0';
+	std::string path(buffer);
+
+	// todo: check this out!!
+	dbHandler.deleteFile(user, path, filename);
+
+	delete[] buffer;
+}
+
+void ConnectionHandler::getFileVersions()
+{
+	if (!logged) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+	bool messageFinished = false;
+	// we need to establish an end. for now it will be \r\n
+
+	while (!messageFinished) {
+		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
+		if (ricevuti == 0) {
+			delete[] buffer;
+			return; // todo: maybe create disconnectedException
+		}
+		if (ricevuti + offset == 1024) {
+			delete[] buffer;
+			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
+		}
+
+		// did i read it all?
+		for (int i = 0; i < offset + ricevuti; i++) {
+			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
+				buffer[i] = '\0';
+				messageFinished = true;
+			}
+		}
+
+		offset += ricevuti;
+	}
+
+	// now i need to split the 2 strings
+	int i = offset - 1; // last char
+	while (buffer[i] != '/') i--;
+	std::string filename(buffer + i);
+	buffer[i + 1] = '\0';
+	std::string path(buffer);
+
+
+	std::string versions = dbHandler.getFileVersions(user, path, filename);
+	// maybe here check for an exception
+
+	send(connectedSocket, versions.c_str(), versions.size(), 0);
+}
+
+void ConnectionHandler::getDeletedFiles()
+{
+	if (!logged) return;
+	std::string deletedFiles = dbHandler.getDeletedFiles(user);
+	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
+}
+
+void ConnectionHandler::downloadPreviousVersion()
+{
+	// todo: finish this method
+}
+
+
 
 // this is the function that the new thread will provide. it is simply a loop where i just wait for an input by the user and then call the preformRequestedOperation function
 void ConnectionHandler::operator()()

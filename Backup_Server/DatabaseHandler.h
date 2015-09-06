@@ -96,5 +96,28 @@ public:
 	std::string getFileVersions(std::string, std::string, std::string);
 
 
+	/*
+	@param1 : username
+	@param2 : blob
+	@param 3: checksum
+	Since the blob is unique for the user, then i can just add its checksum
+	*/
+	void addChecksum(std::string, int, std::string);
+
+
+	/*
+	@param : username
+	*/
+	std::string getDeletedFiles(std::string);
+
+
+	/*
+	@param1 : username
+	@param2 : path
+	@param3 : filename
+	@param4 : lastupdate
+
+	*/
+	int getBlob(std::string, std::string, std::string, std::string);
 };
 

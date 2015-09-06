@@ -29,7 +29,10 @@ private:
 	void logIn();
 	void uploadFile();
 	void removeFile();
-
+	void deleteFile();
+	void getFileVersions();
+	void getDeletedFiles();
+	void downloadPreviousVersion();
 	void prerformReqestedOperation(int);
 	
 
