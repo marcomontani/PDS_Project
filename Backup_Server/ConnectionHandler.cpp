@@ -1,10 +1,13 @@
 #include "stdafx.h"
 #include "ConnectionHandler.h"
 #include "DatabaseHandler.h"
+#include "EncryptionHandler.h"
+
 #include <exception>
 #include <stdexcept>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
 
 #pragma comment(lib, "Ws2_32.lib") // this line asks to the compiler to use the library ws2_32.lib
 
@@ -16,6 +19,7 @@ ConnectionHandler::ConnectionHandler(SOCKET s)
 	functions[0] = &ConnectionHandler::logIn;
 	functions[1] = &ConnectionHandler::signIn;
 	functions[2] = &ConnectionHandler::uploadFile;
+
 }
 
 
@@ -96,10 +100,7 @@ void ConnectionHandler::uploadFile() {
 		blob = dbHandler.createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 
 
-	// todo: finish here
-
 	send(connectedSocket, "OK", 3, 0);
-
 
 	// todo: i need to know where the hell the main folder is!
 
@@ -116,9 +117,9 @@ void ConnectionHandler::uploadFile() {
 		dimension -= ricevuti;
 	}
 
-	// todo: now we have to calculate the checksum and compare it with the one received by the client
-	// the checksum calculated with sha1 has always the same length: 20 bytes
+	send(connectedSocket, "OK", 3, 0); // need this to divide the file from the checksum. else i would have to consider in the last iteration the possibility that all or a part of the checksum is received
 
+	// the checksum calculated with sha1 has always the same length: 20 bytes
 
 	int checksumToRead = 20;
 	int offset = 0;
@@ -127,11 +128,70 @@ void ConnectionHandler::uploadFile() {
 		offset += ricevuti;
 		checksumToRead -= ricevuti;
 	}
+	buffer[20] = '\0';
 
+	EncryptionHandler eHndler;
+	
+	
+	std::string serverSHA = eHndler.CalculateFileHash(std::string(writerPath.begin(), writerPath.end()));
+	std::string clientSHA = (char*)buffer;
 
+	if (serverSHA != clientSHA) throw new std::exception("checksum is not equal");
 
+	// it is all ok
+}
 
+void ConnectionHandler::removeFile()
+{
+	if (!logged) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+	bool messageFinished = false;
+	// we need to establish an end. for now it will be \r\n
+	
+	while (!messageFinished) {
+		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
+		if (ricevuti == 0) {
+			delete[] buffer;
+			return; // todo: maybe create disconnectedException
+		}
+		if (ricevuti + offset == 1024) {
+			delete[] buffer;
+			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
+		}
+		
+		// did i read it all?
+		for (int i = 0; i < offset + ricevuti; i++) {
+			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
+				buffer[i] = '\0';
+				messageFinished = true;
+			}
+		}
 
+		offset += ricevuti;
+	}
+
+	// now i need to split the 2 strings
+	int i = offset - 1; // last char
+	while (buffer[i] != '/') i--;
+	std::string filename(buffer + i);
+	buffer[i + 1] = '\0';
+	std::string path(buffer);
+	
+	// todo: check this out!!
+	dbHandler.removeFile(user, path, filename);
+
+	delete[] buffer;
+}
+
+// this is the function that the new thread will provide. it is simply a loop where i just wait for an input by the user and then call the preformRequestedOperation function
+void ConnectionHandler::operator()()
+{
+	int operation = 0;
+	while (operation > 0) {
+		recv(connectedSocket, (char*)&operation, sizeof(int), 0); // it is 4 bytes. i really wanna assume it comes all in a single packet
+		this->prerformReqestedOperation(operation);
+	}
 }
 
 void ConnectionHandler::logIn() {

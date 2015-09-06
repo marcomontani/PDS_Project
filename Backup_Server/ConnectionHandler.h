@@ -3,13 +3,18 @@
 #include <ws2tcpip.h>
 #include "DatabaseHandler.h"
 
+
+/*
+Usage:	When a connected socket is obtained, create a new connectionHandler passing to it the reference of this socket.
+		After that, launch a thread passing this object (that is callable) and it will handle that connection.
+*/
 class ConnectionHandler
 {
 public:
 	ConnectionHandler(SOCKET s);
 	~ConnectionHandler();
-
-	void prerformReqestedOperation(int);
+	void operator()();
+	
 
 private:
 	// variables
@@ -23,6 +28,11 @@ private:
 	void signIn();
 	void logIn();
 	void uploadFile();
+	void removeFile();
+
+	void prerformReqestedOperation(int);
+	
+
 
 };
 
