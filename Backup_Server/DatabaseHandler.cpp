@@ -437,7 +437,7 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
 		)  throw new std::exception("impossible to create a statement handle");
 
-	std::string query = "SELECT lastUpdate FROM VERSIONS WHERE Blob is not NULL AND username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
+	std::string query = "SELECT lastUpdate FROM VERSIONS WHERE Blob is not NULL AND username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' ORDER BY lastUpdate DESC";
 	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 	if (ret != SQL_SUCCESS) return nullptr;
 

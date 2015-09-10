@@ -70,7 +70,6 @@ void ConnectionHandler::uploadFile() {
 	if (buffer[ricevuti] != '\n') {
 		std::cout << "Errore! il filename non è arrivato correttamente";
 		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
-
 		delete[] buffer;
 		return; // todo: or throw an exception?
 	}
@@ -84,7 +83,7 @@ void ConnectionHandler::uploadFile() {
 	_wsplitpath_s(buffer, drive, 2, directory, 200, filename, 50, extension, 10);
 	
 	
-
+	
 	std::wstring path (drive);
 	path += L"//";
 	path += directory;
@@ -100,12 +99,12 @@ void ConnectionHandler::uploadFile() {
 		blob = dbHandler.createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 
 
-	send(connectedSocket, "OK", 3, 0);
+	send(connectedSocket, "OK", 2, 0);
 
 	// todo: i need to know where the hell the main folder is!
 
-	std::wstring writerPath(L"C://BackupFolders/");
-	writerPath += std::to_wstring(blob);
+	std::wstring writerPath(L"C:\\BackupFolders\\");
+	writerPath += (std::wstring(user.begin(), user.end()) + std::to_wstring(blob));
 
 	std::wfstream writer(writerPath, std::ios::binary); // open the stream on the file, that is a binary stream
 	unsigned int dimension;
