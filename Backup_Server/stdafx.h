@@ -11,6 +11,11 @@
 #include <tchar.h>
 #include <stdlib.h>
 #include <Windows.h>
+#include <windows.storage.streams.h>
+#include <sql.h>
+#include <sqlext.h>
+#include <sal.h>
+
 
 #include <iostream>
 #include <fstream>

@@ -1,12 +1,15 @@
 #pragma once
 #include <string>
 #include <sql.h>
+#include "sqlite3.h"
 
 class DatabaseHandler
 {
 private:
 	SQLHDBC hdbc; // connection handle
 	SQLHENV env;  // enviroment handle
+	sqlite3 *database;
+
 public:
 	DatabaseHandler();
 	~DatabaseHandler();
@@ -119,5 +122,13 @@ public:
 
 	*/
 	int getBlob(std::string, std::string, std::string, std::string);
+
+	
+	/*
+	@param1 : username
+	@param2 : path
+	@param3 : filename
+	*/
+	bool isDeleted(std::string, std::string, std::string);
 };
 

@@ -19,7 +19,11 @@ ConnectionHandler::ConnectionHandler(SOCKET s)
 	functions[0] = &ConnectionHandler::logIn;
 	functions[1] = &ConnectionHandler::signIn;
 	functions[2] = &ConnectionHandler::uploadFile;
-
+	functions[3] = &ConnectionHandler::removeFile;
+	functions[4] = &ConnectionHandler::deleteFile;
+	functions[5] = &ConnectionHandler::getFileVersions;
+	functions[6] = &ConnectionHandler::downloadPreviousVersion;
+	functions[7] = &ConnectionHandler::getDeletedFiles;
 }
 
 
@@ -32,7 +36,7 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 3 || op < 0) {
+	if (op > 7 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	
@@ -285,7 +289,66 @@ void ConnectionHandler::getDeletedFiles()
 
 void ConnectionHandler::downloadPreviousVersion()
 {
-	// todo: finish this method
+	if (!logged || user.empty()) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+	bool messageFinished = false;
+	// we need to establish an end. for now it will be \r\n
+
+	while (!messageFinished) {
+		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
+		if (ricevuti == 0) {
+			delete[] buffer;
+			return; // todo: maybe create disconnectedException
+		}
+		if (ricevuti + offset == 1024) {
+			delete[] buffer;
+			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
+		}
+
+		// did i read it all?
+		for (int i = 0; i < offset + ricevuti; i++) {
+			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
+				buffer[i] = '\0';
+				messageFinished = true;
+			}
+		}
+
+		offset += ricevuti;
+	}
+
+	// now i need to split the 2 strings. i have 'path date'
+	int i = offset - 1; // last char
+	while (buffer[i] != '/') i--; // go back to the path'/'filename 
+
+	buffer[i] = '\0';
+	std::string filename(buffer + i + 1);
+
+	while (buffer[i] != ' ') i++;
+	// i am exactly on the separator between filename and date. 
+	buffer[i] = '\0';
+	std::string path(buffer);
+	std::string date (buffer + i + 1);
+
+	try {
+		int blob = dbHandler.getBlob(user, path, filename, date);
+		if (blob < 0) return;
+
+		// now the standard send of a file
+		std::wstring readPath(L"C:\\BackupFolders\\");
+		readPath += (std::wstring(user.begin(), user.end()) + std::to_wstring(blob));
+
+		std::wifstream reader(readPath, std::ios::binary);
+		wchar_t *buffer = new wchar_t[1024];
+		while (!reader.eof()) {
+			reader.read(buffer, 1024);
+			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
+		}
+	}
+	catch (std::exception e) {
+		std::cout << e.what();
+		return;
+	}
 }
 
 

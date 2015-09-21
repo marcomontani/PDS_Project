@@ -1,44 +1,25 @@
 #include "stdafx.h"
 
 #include "DatabaseHandler.h"
-
-#include <windows.storage.streams.h>
-#include <sql.h>
-#include <sqlext.h>
-#include <sal.h>
+#include "sqlite3.h"
+#include <windows.data.json.h>
 
 
 DatabaseHandler::DatabaseHandler()
 {
-	// here i need to connect to the database. We'll use the ODBC driver
-	
-	// 1) create the enviroment
-	if( SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env) == SQL_ERROR )
-		throw new std::exception("impossible to create enviroment handle");
-	// 2) Register this as an application that expects 3.x behavior
-	if(SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0) == SQL_ERROR ) throw new std::exception("registration as ODBC 3 not successfull");
-	// 3) allocate the handle for the connection (hdbc)
-	SQLAllocHandle(SQL_HANDLE_DBC, env, &hdbc);
-	// 4) connect to the driver. The String is the one getten from the properties of the sql server.
-	
-	if(SQLDriverConnect(hdbc, GetDesktopWindow(), L"Data Source = (localdb)\v11.0; Initial Catalog = master; Integrated Security = True; Connect Timeout = 30; Encrypt = False; TrustServerCertificate = False; ApplicationIntent = ReadWrite; MultiSubnetFailover = False", SQL_NTS, NULL, 0, NULL, SQL_DRIVER_COMPLETE) == SQL_ERROR ) throw new std::exception("impossible to connect to the driver");
-	
+	sqlite3_open("PDSProject.db", &database);
+
+	if (database == nullptr) {
+		std::wcout << L"could not open the db" << std::endl;
+		return;
+	}
 }
 
 
 DatabaseHandler::~DatabaseHandler()
 {
 	// here i need to disconnect from the database
-
-	if (hdbc)
-	{
-		SQLDisconnect(hdbc);
-		SQLFreeHandle(SQL_HANDLE_DBC, hdbc);
-	}
-
-	if (env) SQLFreeHandle(SQL_HANDLE_ENV, env);
-	
-	
+	sqlite3_close(database);
 }
 
 /*
@@ -47,153 +28,84 @@ DatabaseHandler::~DatabaseHandler()
 */
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	
-	SQLHSTMT hStmt;
-	if  (
-		 SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
-
-	
-	
-
-	std::string query = "INSERT INTO USERS (username, password, basedir) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+	char** error;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
+	
+	sqlite3_exec(database, query.c_str(), [](void* notUsed, int argc, char **argv, char **azColName) ->int {
+		// this is the code of the callback
+		for (int i = 0; i<argc; i++) {
+			printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+		}
+		return 0;
 
-	
-	SQLRETURN ret =  SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-
-	if (ret != SQL_SUCCESS) // we can call SQLGetDiagRec to get a SQLSTATE where there is a code about what kind of error has occurred
-		throw new std::exception("error while executing the query");
-	
-	
-	
+	}, NULL, error);
+	if (error == nullptr) {
+		sqlite3_free(error);
+		throw new std::exception("impossible to create the new user");
+	}
 }
 
 bool DatabaseHandler::logUser(std::string username, std::string password) {
 
-	SQLHSTMT hStmt;
-	if (
-		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
-
-
-	std::string query = "SELECT password FROM USERS where username = ' " + username + " '";
-	// todo : use precompiled queries or check for avoid SQL INJECTION
-
-	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		throw new std::exception("error while retriving the password from the user");
-	}
-
+	std::string query = "SELECT password FROM USERS where username = '" + username + "'";
 	std::string pass = "password";
-	int dimension;
-
-	SQLBindCol(hStmt, // statement handle
-		1, // column number
-		SQL_C_TCHAR, // want a string
-		(SQLPOINTER)pass.c_str(),  // put it here
-		50, // max dim of the string. in the example is 0, maybe it means "the necessary". // todo: check that
-		(SQLINTEGER*)&dimension // the length of the string 
-		);
-
-	if ( SQLFetch(hStmt) == SQL_NO_DATA ) { // this puts into pass the password. if the result is empty there is no error but i get SQL_NO_DATA						
-			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-			return false;
+	// todo : use precompiled queries or check for avoid SQL INJECTION
+	char** error;
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		((std::string*)data)->assign(argv[0]);
+		return 0;
+		}, &pass, error);	
+	if (error != nullptr) {
+		sqlite3_free(error);
+		throw new std::exception("impossible to get password");
 	}
 
-
-	
-	SQLFreeHandle(SQL_HANDLE_STMT, hStmt); // this also closes the cursor
 	// todo: calculate md5 (or sha1) on password
 	return pass == password; //  operator == has been redefined
 	
 }
 
-// this function return something like {[path1, file1, 22][path2, file2, 16]...[path_n, file_n, #]}
+// this function return something like "folder": [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
 std::string DatabaseHandler::getUserFolder(std::string username)
 {
-	SQLHANDLE hStmt;
-	std::string userFolder = "{";
-	if (
-		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
 
-	std::string query = "SELECT name, path, Blob FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastUpdate = (\
+	std::string query = "SELECT name, path FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastUpdate = (\
 							SELECT  MAX(lastUpdate) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
 
-	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		// maybe throw an exception? 
-		return NULL;
-	}
-	std::string filename, path;
-	int blob;
-	SQLINTEGER filenameDimension, pathDimension, blobDimension;
+	std::string jsonFolder = "\"Folder\":[";
+	char** error;
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		std::string *folder = (std::string*)data;		
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + std::string(argv[1]) + "\" },";
+		folder->append(appendString);
+		return 0;
+	}, &jsonFolder, error);
 
-	SQLBindCol(hStmt, // statement handle
-		0, // column number
-		SQL_C_TCHAR, // want a string
-		(SQLPOINTER)filename.c_str(),  // put it here
-		50, // max dim of the string. in the example is 0, maybe it means "the necessary". // todo: check that
-		(SQLINTEGER*)&filenameDimension // the length of the string 
-		);
 
-	SQLBindCol(hStmt, // statement handle
-		1, // column number
-		SQL_C_TCHAR, // want a string
-		(SQLPOINTER)path.c_str(),  // put it here
-		50, // max dim of the string. in the example is 0, maybe it means "the necessary". // todo: check that
-		(SQLINTEGER*)&pathDimension // the length of the string 
-		);
-
-	SQLBindCol(hStmt, // statement handle
-		2, // column number
-		SQL_INTEGER, // want an int
-		(SQLPOINTER)&blob,  // put it here
-		0, // in the example is 0, maybe it means "the necessary". // todo: check that
-		(SQLINTEGER*)&blobDimension // the length of the string 
-		);
-	while (SQLFetch(hStmt) != SQL_NO_DATA) {
-		userFolder += "["+filename+", "+path+","+std::to_string(blob)+"]";
+	if (error != nullptr) {
+		sqlite3_free(error);
+		throw new std::exception("error while getting the filesystem for the user ");
 	}
 
-	userFolder += "}";
+	jsonFolder[jsonFolder.size() - 1] = ']';
 
-	return userFolder;
+	return jsonFolder;
 }
 
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
-	SQLHANDLE hStmt;
+	
+	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
 	int number;
-	SQLINTEGER d;
-	if (
-		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
+	char** error;
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		*((int*)data) = strtol(argv[0], nullptr, 10);
+	}, &number, error);
 
-	std::string query = "SELECT count(*) FROM FILES where username = ' " + username + " ' AND path = '" + path +"' AND name = ' " + fileName + " '";
-
-	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		throw new std::exception("error while checking if the user has the file requested");
+	if (error != nullptr) {		
+		sqlite3_free(error);
+		throw new std::exception("existsFile has crashed!");
 	}
-
-	SQLBindCol(hStmt, // statement handle
-		1, // column number. // TODO: Modify it (the table has not been created yet)
-		SQL_INTEGER, // want an int 
-		(SQLPOINTER)&number,  // put it here
-		0, // is 0, maybe it means "the necessary". // todo: check that
-		&d // the length of the int ??
-		);
-
-	
-
-	if (SQLFetch(hStmt) == SQL_NO_DATA)
-		number = 0; // so i'll ret false
-	
-	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 	return number == 1;
 }
 
@@ -218,43 +130,41 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	}
 
 	
-	// now i need to create the blob
-	// how many blobs can i count for that file?
-	query = "SELECT COUNT(*) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')";
-	// todo: maybe this is wrong and i should count the blobs for the user.	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
+	// now i need to create the blob; how many blobs can i count for that user?
+	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
 
 	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 	if (ret != SQL_SUCCESS) {
 		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
+		
 		throw new std::exception("error while counting the file");
 	}
 
-
 	// TODO: create the file and create the new Blob should be in the same transaction. modify that
-
 
 	SQLBindCol(hStmt, // statement handle
 		0, // column number  
-		SQL_INTEGER, // want an int 
+		SQL_INTEGER, // wanted an int 
 		(SQLPOINTER)&count,  // put it here
-		0, // is 0, maybe it means "the necessary". // todo: check that
+		0, // is 0, maybe it means "the necessary". // todo: check that sizeof(SQL_INTEGER)
 		&d // the length of the int ??
 		);
 	
 	if (SQLFetch(hStmt) == SQL_NO_DATA) {
 		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
 		throw new std::exception("error: cannot retrive how many files there are for the selected user");
 	}
 	SQLCloseCursor(hStmt);
 	if (count == 0) max = 0;
 	else {
-		query = "SELECT MAX(Blob) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')"; 
-		// todo: myght be wrong. blob should be independent from the file, but depend only from the user!!  
-		// query = SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "')";
+		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
 		// todo: should we add	where Blob not null ??
 		ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 		if (ret != SQL_SUCCESS) {
 			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+			// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
 			throw new std::exception("error while searching for the max blob");
 		}
 		
@@ -268,6 +178,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 
 		if (SQLFetch(hStmt) == SQL_NO_DATA) {
 			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+			// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
 			throw new std::exception("error: cannot retrive how many files there are for the selected user");
 		}
 		max = count++;
@@ -278,6 +189,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 	if (ret != SQL_SUCCESS) {
 		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
 		throw new std::exception("error while searching for the max blob");
 	}
 
@@ -318,8 +230,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 
 	if (count == 0) max = 0;
 	else {
-		query = "SELECT MAX(Blob) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')";
-		// todo: query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "')";
+		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
 
 		ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
 		if (ret != SQL_SUCCESS) {
@@ -355,7 +266,6 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	return max;
 }
 
-// todo: rename to deleteFile
 void DatabaseHandler::deleteFile(std::string username, std::string path, std::string filename)
 {
 	if (!existsFile(username, path, filename)) throw new std::exception("no file to delete");
@@ -433,6 +343,10 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 	time_t t;
 	SQLINTEGER d;
 	std::string versions = "{";
+
+
+
+
 	if (
 		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
 		)  throw new std::exception("impossible to create a statement handle");
@@ -525,6 +439,7 @@ std::string DatabaseHandler::getDeletedFiles(std::string username)
 
 int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)
 {
+	if (!existsFile(username, path, filename) || isDeleted(username, path, filename)) return -1;
 	SQLHANDLE hStmt;
 	if (
 		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
@@ -551,6 +466,46 @@ int DatabaseHandler::getBlob(std::string username, std::string path, std::string
 	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 
 	return blob;
+}
+
+bool DatabaseHandler::isDeleted(std::string username, std::string path, std::string filename)
+{
+	SQLHANDLE hStmt;
+	int validBlob;
+	SQLINTEGER d;
+	if (
+		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
+		)  throw new std::exception("impossible to create a statement handle");
+
+	std::string query = "SELECT COUNT(*) FROM (\
+							SELECT Blob FROM VERSION WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' AND lastUpdate = (\
+								SELECT MAX(lastUpdate) FROM VERSION  WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "')\
+						) WHERE Blob is not NULL";
+
+	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+	if (ret != SQL_SUCCESS) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("could not see if last blob for that file was NULL");
+	}
+
+	SQLBindCol(hStmt, // statement handle
+		0, // column number  
+		SQL_INTEGER, // want an int 
+		(SQLPOINTER)&validBlob,  // put it here
+		0, // is 0, maybe it means "the necessary". // todo: check that
+		&d // the length of the int ??
+		);
+	if (SQLFetch(hStmt) == SQL_NO_DATA) {
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		throw new std::exception("error: cannot retrive how many files there are for the selected user");
+	}
+
+	if (validBlob == 0) { // means that last updted blob was null
+		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+		return true;
+	}
+	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+	return false;
 }
 
 

@@ -2,10 +2,11 @@
 //
 
 #include "stdafx.h"
-
+#include "DatabaseHandler.h"
 
 int main()
 {
+	DatabaseHandler d;
     return 0;
 }
 

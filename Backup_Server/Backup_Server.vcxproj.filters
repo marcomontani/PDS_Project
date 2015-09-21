@@ -36,6 +36,12 @@
     <ClInclude Include="EncryptionHandler.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="sqlite3.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3ext.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -51,6 +57,9 @@
       <Filter>File di origine</Filter>
     </ClCompile>
     <ClCompile Include="EncryptionHandler.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="sqlite3.c">
       <Filter>File di origine</Filter>
     </ClCompile>
   </ItemGroup>
