@@ -100,6 +100,7 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 	char** error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
+		return 0;
 	}, &number, error);
 
 	if (error != nullptr) {		
@@ -111,110 +112,83 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 
 int DatabaseHandler::createFileForUser(std::string username, std::string path, std::string fileName) {
 	
+	
 	if (this->existsFile(username, path, fileName)) throw new std::exception("file already exists");
-
-	SQLHANDLE hStmt;
-	int count = 1, max = -1;
-	SQLINTEGER d;
-	if (
-		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
-
-
-
+	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
 	std::string query = "INSERT INTO FILES (name, path, username) VALUES (' " + fileName + " ', ' " + path + "', ' " + username + " ')";
-	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		throw new std::exception("error while inserting the file");
+	char** error;
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
+	if (error != nullptr) {
+		sqlite3_free(error);
+		throw new std::exception("no insertion");
+
 	}
 
-	
 	// now i need to create the blob; how many blobs can i count for that user?
 	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
-
-	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-		
-		throw new std::exception("error while counting the file");
-	}
-
-	// TODO: create the file and create the new Blob should be in the same transaction. modify that
-
-	SQLBindCol(hStmt, // statement handle
-		0, // column number  
-		SQL_INTEGER, // wanted an int 
-		(SQLPOINTER)&count,  // put it here
-		0, // is 0, maybe it means "the necessary". // todo: check that sizeof(SQL_INTEGER)
-		&d // the length of the int ??
-		);
+	// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
+	int numberOfBlobs,max=-1;
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		*((int*)data) = strtol(argv[0], nullptr, 10);
+		return 0;
+	}, &numberOfBlobs, error);
 	
-	if (SQLFetch(hStmt) == SQL_NO_DATA) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-		throw new std::exception("error: cannot retrive how many files there are for the selected user");
+	if (error != nullptr) {
+		sqlite3_free(error);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw new std::exception("DbHandler:: createFileForUser-> no count");
 	}
-	SQLCloseCursor(hStmt);
-	if (count == 0) max = 0;
+
+	if (numberOfBlobs == 0) max = 0;
+	// TODO: create the file and create the new Blob should be in the same transaction. modify that
 	else {
 		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
-		// todo: should we add	where Blob not null ??
-		ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-		if (ret != SQL_SUCCESS) {
-			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-			// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-			throw new std::exception("error while searching for the max blob");
+		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+			*((int*)data) = strtol(argv[0], nullptr, 10) + 1;
+			return 0;
+		}, &max, error);
+		if (error != nullptr) {
+			sqlite3_free(error);
+			sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+			throw new std::exception("DbHandler:: createFileForUser-> no select max blob");
 		}
-		
-		SQLBindCol(hStmt, // statement handle
-			0, // column number  
-			SQL_INTEGER, // want an int 
-			(SQLPOINTER)&count,  // put it here
-			0, // is 0, maybe it means "the necessary". // todo: check that
-			&d // the length of the int ??
-			);
 
-		if (SQLFetch(hStmt) == SQL_NO_DATA) {
-			SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-			// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-			throw new std::exception("error: cannot retrive how many files there are for the selected user");
-		}
-		max = count++;
 	}
-	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
 	
-	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', " +  std::to_string(t) +", " + std::to_string(max) +" )";
-	ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-		throw new std::exception("error while searching for the max blob");
+
+	std::string t = std::to_string(time(0)); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
+	
+	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', '" +  t +"', " + std::to_string(max) +" )";	
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
+	if (error != nullptr) {
+		sqlite3_free(error);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw new std::exception("DbHandler:: createFileForUser-> no insert blob");
 	}
 
-	SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-	return max;
+	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
+	return 0;
 }
 
 int DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
 	if (! this->existsFile(username, path, fileName)) throw new std::exception("file does not exist");
 
-	SQLHANDLE hStmt;
 	int count = 1, max = -1;
-	SQLINTEGER d;
-	if (
-		SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hStmt) // Created the handle for a statement.
-		)  throw new std::exception("impossible to create a statement handle");
+	char ** error;
 
-
-	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE name='" + fileName + " ' AND path =' " + path + "' AND username = '" + username + "')";
-	// query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
-	SQLRETURN ret = SQLExecDirect(hStmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
-	if (ret != SQL_SUCCESS) {
-		SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
-		throw new std::exception("could not count blobs for that user");
+	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		*((int*)data) = strtol(argv[0], nullptr, 10);
+		
+		return 0;
+	}, &count, error);
+	if (error != nullptr) {
+		sqlite3_free(error);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw new std::exception("DbHandler:: createFileForUser-> no select");
 	}
+
+
 
 	SQLBindCol(hStmt, // statement handle
 		0, // column number  
