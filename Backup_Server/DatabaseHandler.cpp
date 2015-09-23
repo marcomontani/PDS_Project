@@ -114,7 +114,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	
 	
 	if (this->existsFile(username, path, fileName)) throw new std::exception("file already exists");
-	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+	sqlite3_exec(database, "BEGIN EXCLUSIVE TRANSACTION", nullptr, nullptr, nullptr);
 	std::string query = "INSERT INTO FILES (name, path, username) VALUES (' " + fileName + " ', ' " + path + "', ' " + username + " ')";
 	char** error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
@@ -179,13 +179,12 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
-		
 		return 0;
 	}, &count, error);
 	if (error != nullptr) {
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
-		throw new std::exception("DbHandler:: createFileForUser-> no select");
+		throw new std::exception("DbHandler:: createNewBlobForFile-> no select");
 	}
 
 

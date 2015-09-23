@@ -15,13 +15,15 @@
 #include <sql.h>
 #include <sqlext.h>
 #include <sal.h>
+#include <winsock2.h>
 
 
 #include <iostream>
 #include <fstream>
 #include <ctime>
 #include <string>
+#include <thread>
 
-
+#define PORT 7000; 
 
 // TODO: fare riferimento qui alle intestazioni aggiuntive richieste dal programma
