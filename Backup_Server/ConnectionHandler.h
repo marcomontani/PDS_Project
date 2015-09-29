@@ -34,7 +34,7 @@ private:
 	void getDeletedFiles();
 	void downloadPreviousVersion();
 	void prerformReqestedOperation(int);
-	
+	void getUserFolder();
 
 
 };

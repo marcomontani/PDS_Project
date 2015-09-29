@@ -24,19 +24,21 @@ ConnectionHandler::ConnectionHandler(SOCKET s)
 	functions[5] = &ConnectionHandler::getFileVersions;
 	functions[6] = &ConnectionHandler::downloadPreviousVersion;
 	functions[7] = &ConnectionHandler::getDeletedFiles;
+	functions[8] = &ConnectionHandler::getUserFolder;
 }
 
 
 ConnectionHandler::~ConnectionHandler()
 {
+
 }
 
 /*
-	throws out_of_range exception 
+	throws out_of_range exception
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 7 || op < 0) {
+	if (op > 8 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	
@@ -357,10 +359,10 @@ void ConnectionHandler::downloadPreviousVersion()
 void ConnectionHandler::operator()()
 {
 	int operation = 0;
-	while (operation > 0) {
+	 do {
 		recv(connectedSocket, (char*)&operation, sizeof(int), 0); // it is 4 bytes. i really wanna assume it comes all in a single packet
-		this->prerformReqestedOperation(operation);
-	}
+		if(operation >= 0) this->prerformReqestedOperation(operation);
+	 } while (operation >= 0); // exit = [ operation -1 ]
 }
 
 void ConnectionHandler::logIn() {
@@ -467,3 +469,9 @@ void ConnectionHandler::signIn() {
 
 }
 
+void ConnectionHandler::getUserFolder() {
+	std::string currentFolder;
+	if (!logged) return;
+	currentFolder = dbHandler.getUserFolder(user);
+	send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
+}

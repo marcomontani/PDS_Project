@@ -29,7 +29,7 @@ DatabaseHandler::~DatabaseHandler()
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	
 	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
-	char** error;
+	char* error;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
 	
 	sqlite3_exec(database, query.c_str(), [](void* notUsed, int argc, char **argv, char **azColName) ->int {
@@ -39,7 +39,7 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 		}
 		return 0;
 
-	}, NULL, error);
+	}, NULL, &error);
 	if (error == nullptr) {
 		sqlite3_free(error);
 		throw new std::exception("impossible to create the new user");
@@ -51,11 +51,11 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 	std::string query = "SELECT password FROM USERS where username = '" + username + "'";
 	std::string pass = "password";
 	// todo : use precompiled queries or check for avoid SQL INJECTION
-	char** error;
+	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		((std::string*)data)->assign(argv[0]);
 		return 0;
-		}, &pass, error);	
+		}, &pass, &error);	
 	if (error != nullptr) {
 		sqlite3_free(error);
 		throw new std::exception("impossible to get password");
@@ -74,13 +74,13 @@ std::string DatabaseHandler::getUserFolder(std::string username)
 							SELECT  MAX(lastUpdate) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
 
 	std::string jsonFolder = "\"Folder\":[";
-	char** error;
+	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string *folder = (std::string*)data;		
 		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + std::string(argv[1]) + "\" },";
 		folder->append(appendString);
 		return 0;
-	}, &jsonFolder, error);
+	}, &jsonFolder, &error);
 
 
 	if (error != nullptr) {
@@ -97,11 +97,11 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 	
 	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
 	int number;
-	char** error;
+	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
-	}, &number, error);
+	}, &number, &error);
 
 	if (error != nullptr) {		
 		sqlite3_free(error);
@@ -116,8 +116,8 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	if (this->existsFile(username, path, fileName)) throw new std::exception("file already exists");
 	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
 	std::string query = "INSERT INTO FILES (name, path, username) VALUES (' " + fileName + " ', ' " + path + "', ' " + username + " ')";
-	char** error;
-	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
+	char* error;
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
 		throw new std::exception("no insertion");
@@ -131,7 +131,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
-	}, &numberOfBlobs, error);
+	}, &numberOfBlobs, &error);
 	
 	if (error != nullptr) {
 		sqlite3_free(error);
@@ -146,7 +146,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 			*((int*)data) = strtol(argv[0], nullptr, 10) + 1;
 			return 0;
-		}, &max, error);
+		}, &max, &error);
 		if (error != nullptr) {
 			sqlite3_free(error);
 			sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
@@ -159,7 +159,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	std::string t = std::to_string(time(0)); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
 	
 	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', '" +  t +"', " + std::to_string(max) +" )";	
-	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
@@ -174,7 +174,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	if (! this->existsFile(username, path, fileName)) throw new std::exception("file does not exist");
 
 	int count = 1, max = -1;
-	char ** error;
+	char * error;
 	sqlite3_exec(database, "BEGIN EXCLUSIVE TRANSACTION", nullptr, nullptr, nullptr);
 
 
@@ -182,7 +182,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);	
 		return 0;
-	}, &count, error);
+	}, &count, &error);
 
 	if (error != nullptr) {
 		sqlite3_free(error);
@@ -196,7 +196,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 			*((int*)data) = strtol(argv[0], nullptr, 10) + 1;
 			return 0;
-		}, &max, error);
+		}, &max, &error);
 		
 		if (error != nullptr) {
 			sqlite3_free(error);
@@ -207,7 +207,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
 
 	query = "INSERT INTO VERSIONS(name, path, username, lastUpdate, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', '" + std::to_string(t) + "', " + std::to_string(max) + " )";
-	sqlite3_exec(database, query.c_str(), nullptr, nullptr, error);
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
 		sqlite3_free(error);
@@ -270,9 +270,7 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 std::string DatabaseHandler::getFileVersions(std::string username, std::string path, std::string filename)
 {
 	if (!existsFile(username, path, filename)) throw new std::exception("cannot find the file"); // todo: maybe also if it has been deleted?
-	
-	
-	time_t t;
+
 	std::string versions = "\"versions\" : [";
 	char* error;
 
