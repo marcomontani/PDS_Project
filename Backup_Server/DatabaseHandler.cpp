@@ -29,21 +29,21 @@ DatabaseHandler::~DatabaseHandler()
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	
 	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
-	char* error;
+	char* error = NULL;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
-	
-	sqlite3_exec(database, query.c_str(), [](void* notUsed, int argc, char **argv, char **azColName) ->int {
-		// this is the code of the callback
-		for (int i = 0; i<argc; i++) {
-			printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-		}
-		return 0;
 
-	}, NULL, &error);
-	if (error == nullptr) {
+	std::cout << std::endl << query << std::endl;
+	
+	sqlite3_exec(database, query.c_str(), NULL, NULL, &error);
+	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("impossible to create the new user");
+
+		std::string msg("impossible to create the new user: ");
+		msg += error;
+		throw new std::exception(msg.c_str());
 	}
+	else
+		std::cout << "db handler : utente loggato correttamente" << std::endl;
 }
 
 bool DatabaseHandler::logUser(std::string username, std::string password) {

@@ -11,7 +11,7 @@ Usage:	When a connected socket is obtained, create a new connectionHandler passi
 class ConnectionHandler
 {
 public:
-	ConnectionHandler(SOCKET s);
+	ConnectionHandler(const SOCKET& s);
 	~ConnectionHandler();
 	void operator()();
 	
@@ -19,7 +19,7 @@ public:
 private:
 	// variables
 	void (ConnectionHandler::*functions [8] ) (void); // array of functions that can be requested by the user
-	SOCKET connectedSocket, *connS;
+	SOCKET connectedSocket;
 	bool logged;
 	DatabaseHandler dbHandler;
 	std::string user;

@@ -82,19 +82,18 @@ int main()
 			continue;
 		}
 
-		std::thread t1([](SOCKET connS) {
+		
+	
+		std::thread t([](SOCKET connS) {
+			//	qui riesco a fare una recv correttamente.
 			ConnectionHandler handle_con(connS);
 			handle_con();
 		}, cs);
-		t1.detach();
+		t.detach();
 
-		//ConnectionHandler *handle_con = new ConnectionHandler(cs);
-		
-		//std::thread t(*handle_con); // when this dies should do threads_number--;
-		//t.detach();
 		threads_number++;
 		// todo: if (threads_number == MAX_THREAD) wait();
-		//delete(handle_con);
+		
 	}
 
     return 0;

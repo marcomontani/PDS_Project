@@ -11,13 +11,13 @@
 
 #pragma comment(lib, "Ws2_32.lib") // this line asks to the compiler to use the library ws2_32.lib
 
-ConnectionHandler::ConnectionHandler(SOCKET s)
+ConnectionHandler::ConnectionHandler(const SOCKET& s)
 {
-	std::cout << "ConnectionHandler costruttore chiamato!";
+	std::cout << "ConnectionHandler costruttore chiamato!" << std::endl;
 	if (s == INVALID_SOCKET) {
 		std::cout << "stai passando un invalid socket!";
+		return;
 	}
-	connectedSocket = s;
 	logged = false;
 
 	functions[0] = &ConnectionHandler::logIn;
@@ -30,19 +30,8 @@ ConnectionHandler::ConnectionHandler(SOCKET s)
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
 
-
-
-	char buffer[4];
-	if (SOCKET_ERROR == recv(connectedSocket, buffer, 4, 0)) { // it is 4 bytes. i really wanna assume it comes all in a single packet
-		std::cout << "errore: " << WSAGetLastError() << std::endl;
-		// wsa error = 10038 -> connectedSocket is not a socket
-	}
-	else
-		std::cout << (int)buffer << " e' stato ricevuto" << std::endl;
+	connectedSocket = s;
 }
-
-
-
 
 ConnectionHandler::~ConnectionHandler()
 {
@@ -57,7 +46,8 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	
-	((*this).*(functions[op]))();
+	if (op == 1) this->signIn();
+	else ((*this).*(functions[op]))();
 }
 
 
@@ -384,6 +374,7 @@ void ConnectionHandler::operator()()
 			return;
 		}
 
+		operation = *((int*)buffer);
 		std::cout << "richiesta operazione " << operation << std::endl;
 
 
@@ -470,7 +461,7 @@ void ConnectionHandler::signIn() {
 			return;
 		}
 
-	std::cout << "dati ricevuti correttamente" << std::endl;
+	std::cout << "dati ricevuti correttamente: username = " << credentials[0] << "; pass = " << credentials[1] << "; path = " << credentials[2] << std::endl;
 
 	try {
 		dbHandler.registerUser(credentials[0], credentials[1], credentials[2]);
@@ -482,6 +473,9 @@ void ConnectionHandler::signIn() {
 	}
 
 	// if i am here all the login procedure has succeded. now i need to create a folder for the specified user
+
+
+
 	std::cout << "utente creato correttamente" << std::endl;
 
 
