@@ -19,7 +19,7 @@ public:
 private:
 	// variables
 	void (ConnectionHandler::*functions [8] ) (void); // array of functions that can be requested by the user
-	SOCKET connectedSocket;
+	SOCKET connectedSocket, *connS;
 	bool logged;
 	DatabaseHandler dbHandler;
 	std::string user;

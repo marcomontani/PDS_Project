@@ -20,6 +20,11 @@ int main()
 	struct addrinfo hints, *result;
 	memset(&hints, 0, sizeof(hints));
 
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
 	int iResult = getaddrinfo("127.0.0.1", "7000", &hints, &result);
 	if (iResult != 0) {
 		printf("getaddrinfo failed with error: %d\n", iResult);
@@ -32,13 +37,16 @@ int main()
 	
 	if (s == INVALID_SOCKET) {
 		std::cout << "Impossibile creare il socket " << "errno : " << WSAGetLastError() << std::endl;
+		WSACleanup();
 		return 0;
 	}
-	struct sockaddr_in saddr,caddr;
+
+	
+
+	struct sockaddr_in saddr;
 	int len = sizeof(sockaddr);
 
 	memset(&saddr, 0, sizeof(saddr));
-	memset(&caddr, 0, sizeof(saddr));
 
 	saddr.sin_addr.s_addr= INADDR_ANY;
 	saddr.sin_family = AF_INET;
@@ -49,6 +57,7 @@ int main()
 		WSACleanup();
 		return 0;
 	}
+	freeaddrinfo(result);
 	if (listen(s, SOMAXCONN) == SOCKET_ERROR) {
 		std::cout << "Impossibile fare la listen" << std::endl;
 		WSACleanup();
@@ -59,20 +68,33 @@ int main()
 	while (true)
 	{
 		std::cout << "i am waiting a connection" << std::endl;
-		//SOCKET cs = accept(s, (struct sockaddr *)&caddr, &len);
-		SOCKET cs = accept(s, NULL, NULL);
+		
+
+		struct sockaddr_in client_addr;
+		socklen_t client_len = sizeof(sockaddr_in);
+		memset(&client_addr, 0, sizeof(sockaddr_in));
+
+
+		SOCKET cs = accept(s, (sockaddr*)&client_addr, &client_len);
 		std::cout << "a connection has been established" << std::endl;
 		if (cs == INVALID_SOCKET) {
 			std::cout << "accepted a connection : invalid with code " << WSAGetLastError() << std::endl;
 			continue;
 		}
-		ConnectionHandler * handle_con = new ConnectionHandler(cs);
+
+		std::thread t1([](SOCKET connS) {
+			ConnectionHandler handle_con(connS);
+			handle_con();
+		}, cs);
+		t1.detach();
+
+		//ConnectionHandler *handle_con = new ConnectionHandler(cs);
 		
-		std::thread t(*handle_con); // when this dies should do threads_number--;
-		t.detach();
+		//std::thread t(*handle_con); // when this dies should do threads_number--;
+		//t.detach();
 		threads_number++;
 		// todo: if (threads_number == MAX_THREAD) wait();
-		delete(handle_con);
+		//delete(handle_con);
 	}
 
     return 0;

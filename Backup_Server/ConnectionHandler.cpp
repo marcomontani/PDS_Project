@@ -13,6 +13,10 @@
 
 ConnectionHandler::ConnectionHandler(SOCKET s)
 {
+	std::cout << "ConnectionHandler costruttore chiamato!";
+	if (s == INVALID_SOCKET) {
+		std::cout << "stai passando un invalid socket!";
+	}
 	connectedSocket = s;
 	logged = false;
 
@@ -25,12 +29,23 @@ ConnectionHandler::ConnectionHandler(SOCKET s)
 	functions[6] = &ConnectionHandler::downloadPreviousVersion;
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
+
+
+
+	char buffer[4];
+	if (SOCKET_ERROR == recv(connectedSocket, buffer, 4, 0)) { // it is 4 bytes. i really wanna assume it comes all in a single packet
+		std::cout << "errore: " << WSAGetLastError() << std::endl;
+		// wsa error = 10038 -> connectedSocket is not a socket
+	}
+	else
+		std::cout << (int)buffer << " e' stato ricevuto" << std::endl;
 }
+
+
 
 
 ConnectionHandler::~ConnectionHandler()
 {
-
 }
 
 /*
@@ -358,9 +373,20 @@ void ConnectionHandler::downloadPreviousVersion()
 // this is the function that the new thread will provide. it is simply a loop where i just wait for an input by the user and then call the preformRequestedOperation function
 void ConnectionHandler::operator()()
 {
-	int operation = 0;
+	int operation = -1;
+	char buffer[32];
+	memset(buffer, 0, 32);
+	
 	 do {
-		recv(connectedSocket, (char*)&operation, sizeof(int), 0); // it is 4 bytes. i really wanna assume it comes all in a single packet
+		if( SOCKET_ERROR == recv(connectedSocket, buffer, 4, 0)) { // it is 4 bytes. i really wanna assume it comes all in a single packet
+			std::cout << "errore: " << WSAGetLastError() << std::endl;
+			// wsa error = 10038 -> connectedSocket is not a socket
+			return;
+		}
+
+		std::cout << "richiesta operazione " << operation << std::endl;
+
+
 		if(operation >= 0) this->prerformReqestedOperation(operation);
 	 } while (operation >= 0); // exit = [ operation -1 ]
 }
@@ -417,10 +443,10 @@ void ConnectionHandler::signIn() {
 
 	char* buffer = new char[100];
 
+	std::cout << "in attesa delle credenziali" << std::endl;
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti == 100) {
-		std::cout << "Errore! credenziali troppo lunghe";
-	}
+	if (ricevuti == 100)  std::cout << "Errore! credenziali troppo lunghe";
+	std::cout << "credenziali ricevute" << std::endl;
 
 	// todo: check ricevuto != 0
 
@@ -440,8 +466,11 @@ void ConnectionHandler::signIn() {
 	for (i = 0; i < 3; i++ )
 		if (credentials[i].size() == 0) {
 			std::cout << "Errore! Username o password non arrivati";
+			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
 			return;
 		}
+
+	std::cout << "dati ricevuti correttamente" << std::endl;
 
 	try {
 		dbHandler.registerUser(credentials[0], credentials[1], credentials[2]);
@@ -453,6 +482,8 @@ void ConnectionHandler::signIn() {
 	}
 
 	// if i am here all the login procedure has succeded. now i need to create a folder for the specified user
+	std::cout << "utente creato correttamente" << std::endl;
+
 
 	std::string folderPath = "C://backupServer/";
 	folderPath += credentials[0]; // username
@@ -467,6 +498,7 @@ void ConnectionHandler::signIn() {
 	logged = true;
 	user = credentials[0];
 
+	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 }
 
 void ConnectionHandler::getUserFolder() {
