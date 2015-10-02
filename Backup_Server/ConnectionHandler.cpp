@@ -29,7 +29,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[6] = &ConnectionHandler::downloadPreviousVersion;
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
-	functions[9] = &ConnectionHandler::getUserFolder;
+	functions[9] = &ConnectionHandler::getUserPath;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -51,8 +51,6 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 	if (op > 9 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
-	
-	
 	else ((*this).*(functions[op]))();
 }
 
@@ -393,27 +391,31 @@ void ConnectionHandler::logIn() {
 	// todo: check this
 	// i assume it will arrive "username password"
 
-	std::string username;
-	std::string password;
+	std::string username = "";
+	std::string password = "";
 
-	char* buffer = new char[100];
+	char* buffer = new char[50];
+	memset(buffer, 0, 50);
 
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti == 100) {
-		std::cout << "Errore! credenziali troppo lunghe";
-	}
+	if (ricevuti > 20)return;
+	if (ricevuti == 0) throw std::exception("user disconnected");
+	buffer[ricevuti] = '\0';
+	username.append(buffer);
+
+	std::cout << "Login: received username : " << username <<" di " << ricevuti <<" byte "<< std::endl;
+
+	send(connectedSocket, "OK", 3, 0);
+
+	ricevuti = recv(connectedSocket, buffer, 100, 0);
+	if (ricevuti > 32)return;
+	if (ricevuti == 0) throw std::exception("user disconnected");
+	buffer[ricevuti] = '\0';
+	password.append(buffer);
+	
+	std::cout << "Login: received password : " << password << " di " << ricevuti << " byte " << std::endl;
 
 	// todo: check ricevuto != 0
-
-	buffer[ricevuti] = '\0';
-
-	std::string* ptr = &username;
-	unsigned int i = 0;
-
-	for (i = 0; i < strlen(buffer); i++) {
-		if (buffer[i] == ' ') ptr = &password;
-		else ptr->append(1, buffer[i]);
-	}
 
 
 	delete[] buffer;
@@ -426,9 +428,11 @@ void ConnectionHandler::logIn() {
 	bool logged = dbHandler->logUser(username, password);
 
 	// todo: ok now i am logged. study how to use this information
-	logged = true;
-	user = username;
-
+	if (logged) {
+		user = username;
+		send(connectedSocket, "OK", 3, 0);
+	}
+	else send(connectedSocket, "ERR", 4, 0);
 }
 
 void ConnectionHandler::signIn() {
@@ -453,7 +457,7 @@ void ConnectionHandler::signIn() {
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
 	std::cout << "in attesa della password" << std::endl;
-	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 32)  std::cout << "Errore! password troppo lungo";
 	std::cout << "password ricevuta" << std::endl;
 
@@ -463,7 +467,7 @@ void ConnectionHandler::signIn() {
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
 	std::cout << "in attesa del path" << std::endl;
-	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 255)  std::cout << "Errore! path troppo lungo";
 	std::cout << "path ricevuta" << std::endl;
 
