@@ -7,10 +7,11 @@
 
 DatabaseHandler::DatabaseHandler()
 {
-	sqlite3_open("PDSProject.db", &database);
+	std::cout << "dbHandler constructor!! " << std::endl;
 
-	if (database == nullptr) {
+	if (sqlite3_open("PDSProject.db", &database) != SQLITE_OK) {
 		std::wcout << L"could not open the db" << std::endl;
+		// todo: throw exception
 		return;
 	}
 }
