@@ -437,34 +437,43 @@ void ConnectionHandler::signIn() {
 
 	std::string credentials[3];
 
-	char* buffer = new char[100];
+	char* buffer = new char[300];
 
-	std::cout << "in attesa delle credenziali" << std::endl;
+	std::cout << "in attesa dell'username" << std::endl;
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti == 100)  std::cout << "Errore! credenziali troppo lunghe";
-	std::cout << "credenziali ricevute" << std::endl;
+	if (ricevuti > 20)  std::cout << "Errore! username troppo lungo";
+	std::cout << "username ricevuto" << std::endl;
 
 	// todo: check ricevuto != 0
 
 	buffer[ricevuti] = '\0';
+	credentials[0] = std::string(buffer);
+	// username is ok
+	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
-	std::string* ptr = credentials;
-	unsigned int i = 0;
+	std::cout << "in attesa della password" << std::endl;
+	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	if (ricevuti > 32)  std::cout << "Errore! password troppo lungo";
+	std::cout << "password ricevuta" << std::endl;
 
-	for (i = 0; i < strlen(buffer); i++) {
-		if (buffer[i] == ' ') ptr ++;
-		else ptr->append(1, buffer[i]);
-	}
+	buffer[ricevuti] = '\0';
+	credentials[1] = std::string(buffer);
+	// password is ok
+	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
+
+	std::cout << "in attesa del path" << std::endl;
+	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	if (ricevuti > 255)  std::cout << "Errore! path troppo lungo";
+	std::cout << "path ricevuta" << std::endl;
+
+	buffer[ricevuti] = '\0';
+	credentials[2] = std::string(buffer);
+	// folder is ok
+	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
 
 	delete[] buffer;
 
-	for (i = 0; i < 3; i++ )
-		if (credentials[i].size() == 0) {
-			std::cout << "Errore! Username o password non arrivati";
-			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
-			return;
-		}
 	try {
 		dbHandler->registerUser(credentials[0], credentials[1], credentials[2]);
 	}
@@ -476,10 +485,7 @@ void ConnectionHandler::signIn() {
 
 	// if i am here all the login procedure has succeded. now i need to create a folder for the specified user
 
-
-
 	std::cout << "utente creato correttamente" << std::endl;
-
 
 	std::string folderPath = "C://backupServer/";
 	folderPath += credentials[0]; // username
@@ -488,7 +494,6 @@ void ConnectionHandler::signIn() {
 	
 	// todo: check if the folder has been created. if not... maybe it would be necessary to undo all what was done in the database!! 
 	// todo: make all this a transaction.
-
 
 	// if all has gone the right way
 	logged = true;
