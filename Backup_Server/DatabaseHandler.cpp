@@ -40,6 +40,7 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 
 		std::string msg("impossible to create the new user: ");
 		msg += error;
+		std::cout << msg << std::endl;
 		throw new std::exception(msg.c_str());
 	}
 	else
