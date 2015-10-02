@@ -128,5 +128,10 @@ public:
 	@param3 : filename
 	*/
 	bool isDeleted(std::string, std::string, std::string);
+
+	/*
+		If username and password match, it gives the path. otherwise an exception is thrown
+	*/
+	std::string getPath(std::string username, std::string password);
 };
 

@@ -9,12 +9,11 @@ DatabaseHandler::DatabaseHandler()
 {
 	std::cout << "dbHandler constructor!! " << std::endl;
 	database = nullptr;
-	if (sqlite3_open("schifoCheNonEsiste.db", &database) != SQLITE_OK) {
-		std::wcout << L"could not open the db" << std::endl;
+	if (sqlite3_open("PDSProject.db", &database) != SQLITE_OK) {
+		std::wcout << L"could not open/create the db" << std::endl;
 		// todo: throw exception
 		return;
 	}
-	if(database == nullptr) std::wcout << L"could not open the db" << std::endl;
 }
 
 
@@ -31,24 +30,20 @@ DatabaseHandler::~DatabaseHandler()
 */
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	
-	//std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
-	std::string query = "SELECT * FROM USERS";
+	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+	
 	char* error = NULL;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
 
 	std::cout << std::endl << query << std::endl;
 	
-	sqlite3_exec(database, "SELECT * FROM USERS", [](void *dummy, int colNum, char **values, char **colNames)->int {
-		return 0;
-	}
-		, NULL, &error);
+	sqlite3_exec(database, query.c_str(), NULL, NULL, &error);
 	if (error != nullptr) {
-		sqlite3_free(error);
-
 		std::string msg("impossible to create the new user: ");
 		msg += error;
+		sqlite3_free(error);
 		std::cout << msg << std::endl;
-		throw new std::exception(msg.c_str());
+		throw std::exception(msg.c_str());
 	}
 	else
 		std::cout << "db handler : utente loggato correttamente" << std::endl;
@@ -380,6 +375,27 @@ bool DatabaseHandler::isDeleted(std::string username, std::string path, std::str
 	}
 	return validBlob == 0;
 }
+std::string DatabaseHandler::getPath(std::string username, std::string password)
+{
+	
+	char* error;
+	std::string path = "";
+	std::string query = "SELECT folder FROM USERS WHERE username='"+username+"' AND password='"+password+"'";
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		*((std::string*)data) += argv[0];
+		return 0;
+	}, &path, &error);
+
+	if (error != nullptr) {
+		sqlite3_free(error);
+		throw new std::exception("DbHandler::getPath-> error while searchng for path");
+	}
+	else
+		std::cout << "DatabaseHandler::getPath -> " + path << std::endl;
+
+	return path;
+}
+
 
 
 
