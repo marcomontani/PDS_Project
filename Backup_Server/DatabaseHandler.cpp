@@ -7,12 +7,15 @@
 
 DatabaseHandler::DatabaseHandler()
 {
-	sqlite3_open("PDSProject.db", &database);
+	std::cout << "entrato db handler"<<std::endl;
+	int a = sqlite3_open("PDSProject.db", &database);	
 
 	if (database == nullptr) {
 		std::wcout << L"could not open the db" << std::endl;
 		return;
 	}
+	
+
 }
 
 
@@ -40,7 +43,7 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 
 		std::string msg("impossible to create the new user: ");
 		msg += error;
-		std::cout << msg << std::endl;
+		//std::cout << msg << std::endl;
 		throw new std::exception(msg.c_str());
 	}
 	else

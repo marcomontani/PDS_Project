@@ -6,8 +6,6 @@
 class DatabaseHandler
 {
 private:
-	SQLHDBC hdbc; // connection handle
-	SQLHENV env;  // enviroment handle
 	sqlite3 *database;
 
 public:

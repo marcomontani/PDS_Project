@@ -21,7 +21,7 @@ private:
 	void (ConnectionHandler::*functions [8] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
 	bool logged;
-	DatabaseHandler dbHandler;
+	DatabaseHandler *dbHandler;
 	std::string user;
 
 	// functions

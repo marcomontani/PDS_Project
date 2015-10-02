@@ -13,6 +13,7 @@
 
 ConnectionHandler::ConnectionHandler(const SOCKET& s)
 {
+	dbHandler = new DatabaseHandler();
 	std::cout << "ConnectionHandler costruttore chiamato!" << std::endl;
 	if (s == INVALID_SOCKET) {
 		std::cout << "stai passando un invalid socket!";
@@ -31,10 +32,12 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[8] = &ConnectionHandler::getUserFolder;
 
 	connectedSocket = s;
+	
 }
 
 ConnectionHandler::~ConnectionHandler()
 {
+	delete dbHandler;
 }
 
 /*
@@ -104,10 +107,10 @@ void ConnectionHandler::uploadFile() {
 	file += extension;
 
 	int blob;
-	if (dbHandler.existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
-		blob = dbHandler.createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+	if (dbHandler->existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
+		blob = dbHandler->createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 	else
-		blob = dbHandler.createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+		blob = dbHandler->createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 
 
 	send(connectedSocket, "OK", 2, 0);
@@ -148,7 +151,7 @@ void ConnectionHandler::uploadFile() {
 
 	if (serverSHA != clientSHA) throw new std::exception("checksum is not equal"); // todo: i should rollback to not have the database in a not valid state!
 
-	dbHandler.addChecksum(user, blob, clientSHA);
+	dbHandler->addChecksum(user, blob, clientSHA);
 
 	// it is all ok
 }
@@ -191,7 +194,7 @@ void ConnectionHandler::removeFile()
 	std::string path(buffer);
 	
 	// todo: check this out!!
-	dbHandler.removeFile(user, path, filename);
+	dbHandler->removeFile(user, path, filename);
 
 	delete[] buffer;
 }
@@ -238,7 +241,7 @@ void ConnectionHandler::deleteFile()
 	std::string path(buffer);
 
 	// todo: check this out!!
-	dbHandler.deleteFile(user, path, filename);
+	dbHandler->deleteFile(user, path, filename);
 
 	delete[] buffer;
 }
@@ -281,7 +284,7 @@ void ConnectionHandler::getFileVersions()
 	std::string path(buffer);
 
 
-	std::string versions = dbHandler.getFileVersions(user, path, filename);
+	std::string versions = dbHandler->getFileVersions(user, path, filename);
 	// maybe here check for an exception
 
 	send(connectedSocket, versions.c_str(), versions.size(), 0);
@@ -290,7 +293,7 @@ void ConnectionHandler::getFileVersions()
 void ConnectionHandler::getDeletedFiles()
 {
 	if (!logged) return;
-	std::string deletedFiles = dbHandler.getDeletedFiles(user);
+	std::string deletedFiles = dbHandler->getDeletedFiles(user);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
 }
 
@@ -338,7 +341,7 @@ void ConnectionHandler::downloadPreviousVersion()
 	std::string date (buffer + i + 1);
 
 	try {
-		int blob = dbHandler.getBlob(user, path, filename, date);
+		int blob = dbHandler->getBlob(user, path, filename, date);
 		if (blob < 0) return;
 
 		// now the standard send of a file
@@ -417,7 +420,7 @@ void ConnectionHandler::logIn() {
 		return;
 	}
 
-	bool logged = dbHandler.logUser(username, password);
+	bool logged = dbHandler->logUser(username, password);
 
 	// todo: ok now i am logged. study how to use this information
 	logged = true;
@@ -464,7 +467,7 @@ void ConnectionHandler::signIn() {
 	std::cout << "dati ricevuti correttamente: username = " << credentials[0] << "; pass = " << credentials[1] << "; path = " << credentials[2] << std::endl;
 
 	try {
-		dbHandler.registerUser(credentials[0], credentials[1], credentials[2]);
+		dbHandler->registerUser(credentials[0], credentials[1], credentials[2]);
 	}
 	catch (std::exception e) {
 		std::cout << "error: " << e.what();
@@ -498,6 +501,6 @@ void ConnectionHandler::signIn() {
 void ConnectionHandler::getUserFolder() {
 	std::string currentFolder;
 	if (!logged) return;
-	currentFolder = dbHandler.getUserFolder(user);
+	currentFolder = dbHandler->getUserFolder(user);
 	send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
 }
