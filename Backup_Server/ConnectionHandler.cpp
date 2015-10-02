@@ -13,7 +13,6 @@
 
 ConnectionHandler::ConnectionHandler(const SOCKET& s)
 {
-	dbHandler = new DatabaseHandler();
 	std::cout << "ConnectionHandler costruttore chiamato!" << std::endl;
 	if (s == INVALID_SOCKET) {
 		std::cout << "stai passando un invalid socket!";
@@ -32,12 +31,11 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[8] = &ConnectionHandler::getUserFolder;
 
 	connectedSocket = s;
-	
+	dbHandler = new DatabaseHandler();
 }
 
 ConnectionHandler::~ConnectionHandler()
 {
-	delete dbHandler;
 }
 
 /*
@@ -463,9 +461,6 @@ void ConnectionHandler::signIn() {
 			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
 			return;
 		}
-
-	std::cout << "dati ricevuti correttamente: username = " << credentials[0] << "; pass = " << credentials[1] << "; path = " << credentials[2] << std::endl;
-
 	try {
 		dbHandler->registerUser(credentials[0], credentials[1], credentials[2]);
 	}
