@@ -29,6 +29,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[6] = &ConnectionHandler::downloadPreviousVersion;
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
+	functions[9] = &ConnectionHandler::getUserFolder;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -47,11 +48,11 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 8 || op < 0) {
+	if (op > 9 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	
-	if (op == 1) this->signIn();
+	
 	else ((*this).*(functions[op]))();
 }
 
@@ -507,4 +508,23 @@ void ConnectionHandler::getUserFolder() {
 	if (!logged) return;
 	currentFolder = dbHandler->getUserFolder(user);
 	send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
+}
+
+void ConnectionHandler::getUserPath() {
+	if (!logged)  {
+		int *num = new int;
+		*num = -1;
+		send(connectedSocket, (char*)num, 4, 0);
+		delete num;
+	}
+	try {
+		std::string path = dbHandler->getPath(user);
+		send(connectedSocket, path.c_str(), path.size(), 0);
+	}
+	catch (std::exception e) {
+		int *num = new int;
+		*num = -1;
+		send(connectedSocket, (char*)num, 4, 0);
+		delete num;
+	}
 }

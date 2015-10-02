@@ -289,7 +289,7 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 
 	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("DbHandler:: getFileVersions -> error while selecting versions");
+		throw std::exception("DbHandler:: getFileVersions -> error while selecting versions");
 	}
 
 	versions[versions.size() - 1]  = ']';
@@ -305,7 +305,7 @@ void DatabaseHandler::addChecksum(std::string username, int blob, std::string ch
 	if (error != nullptr) {
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
-		throw new std::exception("DbHandler::addChecksum -> error while inserting");
+		throw std::exception("DbHandler::addChecksum -> error while inserting");
 	}
 }
 
@@ -326,7 +326,7 @@ std::string DatabaseHandler::getDeletedFiles(std::string username)
 
 	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("DbHandler::getDeletedFiles -> error while selecting deleted files");
+		throw std::exception("DbHandler::getDeletedFiles -> error while selecting deleted files");
 	}
 
 	result[result.size() - 1] = ']';
@@ -348,7 +348,7 @@ int DatabaseHandler::getBlob(std::string username, std::string path, std::string
 
 	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("DbHandler::getBlob-> error while executing select(blob)");
+		throw std::exception("DbHandler::getBlob-> error while executing select(blob)");
 	}
 
 	return blob;
@@ -371,25 +371,28 @@ bool DatabaseHandler::isDeleted(std::string username, std::string path, std::str
 
 	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("DbHandler::isDeleted-> error while checking if last blob is null");
+		throw std::exception("DbHandler::isDeleted-> error while checking if last blob is null");
 	}
 	return validBlob == 0;
 }
-std::string DatabaseHandler::getPath(std::string username, std::string password)
+std::string DatabaseHandler::getPath(std::string username)
 {
 	
 	char* error;
 	std::string path = "";
-	std::string query = "SELECT folder FROM USERS WHERE username='"+username+"' AND password='"+password+"'";
+	std::string query = "SELECT folder FROM USERS WHERE username='"+username+"'";
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((std::string*)data) += argv[0];
 		return 0;
 	}, &path, &error);
 
+	
 	if (error != nullptr) {
 		sqlite3_free(error);
-		throw new std::exception("DbHandler::getPath-> error while searchng for path");
+		throw std::exception("DbHandler::getPath-> error while searchng for path");
 	}
+	else if(path == "")
+		throw std::exception("username does not exist");
 	else
 		std::cout << "DatabaseHandler::getPath -> " + path << std::endl;
 

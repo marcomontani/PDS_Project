@@ -35,6 +35,7 @@ private:
 	void downloadPreviousVersion();
 	void prerformReqestedOperation(int);
 	void getUserFolder();
+	void getUserPath();
 
 
 };
