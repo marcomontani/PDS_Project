@@ -51,7 +51,7 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	
-	if (op == 1) this->signIn();
+	//if (op == 1) this->signIn();
 	else ((*this).*(functions[op]))();
 }
 
@@ -452,7 +452,7 @@ void ConnectionHandler::signIn() {
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
 	std::cout << "in attesa della password" << std::endl;
-	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 32)  std::cout << "Errore! password troppo lungo";
 	std::cout << "password ricevuta" << std::endl;
 
@@ -462,7 +462,7 @@ void ConnectionHandler::signIn() {
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
 	std::cout << "in attesa del path" << std::endl;
-	int ricevuti = recv(connectedSocket, buffer, 100, 0);
+	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 255)  std::cout << "Errore! path troppo lungo";
 	std::cout << "path ricevuta" << std::endl;
 
