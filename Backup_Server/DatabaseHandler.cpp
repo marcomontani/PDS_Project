@@ -20,6 +20,7 @@ DatabaseHandler::DatabaseHandler()
 DatabaseHandler::~DatabaseHandler()
 {
 	// here i need to disconnect from the database
+	std::cout << "des. dbhandler " << std::endl;
 	sqlite3_close(database);
 }
 
@@ -29,13 +30,17 @@ DatabaseHandler::~DatabaseHandler()
 */
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	
-	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+	//std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+	std::string query = "SELECT * FROM USERS";
 	char* error = NULL;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
 
 	std::cout << std::endl << query << std::endl;
 	
-	sqlite3_exec(database, query.c_str(), NULL, NULL, &error);
+	sqlite3_exec(database, "SELECT * FROM USERS", [](void *dummy, int colNum, char **values, char **colNames)->int {
+		return 0;
+	}
+		, NULL, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
 
@@ -46,7 +51,8 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 	}
 	else
 		std::cout << "db handler : utente loggato correttamente" << std::endl;
-}
+		
+		}
 
 bool DatabaseHandler::logUser(std::string username, std::string password) {
 

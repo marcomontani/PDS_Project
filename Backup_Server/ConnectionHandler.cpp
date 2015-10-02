@@ -32,10 +32,14 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
+	
+
 }
 
 ConnectionHandler::~ConnectionHandler()
 {
+	delete dbHandler;
+	std::cout << "esce chandler" << std::endl;
 }
 
 /*
