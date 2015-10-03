@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
+#include <iomanip>
 
 #pragma comment(lib, "Ws2_32.lib") // this line asks to the compiler to use the library ws2_32.lib
 
@@ -109,28 +109,27 @@ void ConnectionHandler::uploadFile() {
 	}
 	std::cout << "blob = " << blob << std::endl;
 
-	
-
 	// todo: i need to know where the hell the main folder is!
-
-	std::string writerPath("C:\\BackupFolders\\");
-	writerPath += user;
-
+	std::string writerPath("C:\\ProgramData\\Polihub\\" + user);
 	std::cout << "path = " << writerPath << std::endl;
 
 	SECURITY_ATTRIBUTES attr;
+
+	writerPath += "\\" + std::to_string(blob);
+
+	std::cout << "file complete path = " << writerPath << std::endl;
+
+	std::fstream writer(writerPath, std::ios::binary | std::ios::out); // open the stream on the file, that is a binary stream
 	
-	if (CreateDirectoryA(writerPath.c_str(), NULL) != 0) {
-		if (int err = GetLastError() != ERROR_ALREADY_EXISTS) {
-			std::cout << "Impossibile creare c:\\\\BackupFolders !! error" << err << std::endl;
-			return;
-		}
+	if (!writer.is_open()) {
+		std::cerr << "Impossible to create the file stream " << std::endl;
+		send(connectedSocket, "ERR", 4, 0);
+		return;
 	}
+	std::cout << "Il file e' stato salvato correttamente " << std::endl;
 
-	writerPath = "\\" + std::to_string(blob);
-	std::fstream writer(writerPath, std::ios::binary); // open the stream on the file, that is a binary stream
 
-	send(connectedSocket, "OK", 2, 0);
+	send(connectedSocket, "OK", 3, 0);
 	
 	unsigned int dimension;
 	
@@ -140,7 +139,20 @@ void ConnectionHandler::uploadFile() {
 	std::cout << "the file " << file << " has " << dimension << "bytes" << std::endl;
 
 	while (dimension > 0) {
-		ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
+		ricevuti = recv(connectedSocket, buffer, 1024, 0);
+		if (ricevuti == 0) {
+			std::cout << "connection Aborted by the server" << std::endl;
+			writer.close();
+			DeleteFileA(writerPath.c_str());
+			throw std::exception("connection closed");
+		}
+		if (ricevuti < 0) {
+			std::cout << "connection error!!" << std::endl;
+			writer.close();
+			DeleteFileA(writerPath.c_str());
+			send(connectedSocket, "ERR", 4, 0);
+			return;
+		}
 		writer.write(buffer, ricevuti);
 		dimension -= ricevuti;
 	}
@@ -150,34 +162,52 @@ void ConnectionHandler::uploadFile() {
 	else
 		send(connectedSocket, "ERR", 4, 0);
 
-	/*
+	writer.close();
 	// the checksum calculated with sha1 has always the same length: 20 bytes
 
+	/*
 	int checksumToRead = 20;
 	int offset = 0;
 	while (checksumToRead > 0) {
-		ricevuti = recv(connectedSocket, (char*)buffer + offset, checksumToRead, 0);
+		ricevuti = recv(connectedSocket, buffer + offset, checksumToRead, 0);
 		offset += ricevuti;
 		checksumToRead -= ricevuti;
 	}
-	buffer[20] = '\0';
+	*/
+
+	ricevuti = recv(connectedSocket, buffer, 1000, 0);
+	std::cout << "il client mi ha mandato " << ricevuti << " bytes di sha1" << std::endl << std::endl;
 
 	EncryptionHandler eHndler;
+	std::string serverSHA;
+	try {
+		serverSHA = eHndler.from_file(writerPath);
+	}
+	catch (std::exception e) {
+		std::cout << "exception: " << e.what() << std::endl;
+		// todo: remove database entries. problem -> was the file new or was it just a version? maybe we just need to delete the version, then count how many versions there are. if 0 delete file from the other table
+		DeleteFileA(writerPath.c_str());
+		send(connectedSocket, "ERR", 4, 0);
+		delete[] buffer;
+		return;
+	}
 	
-	
-	std::string serverSHA = eHndler.CalculateFileHash(std::string(writerPath.begin(), writerPath.end()));
-	std::string clientSHA = (char*)buffer;
 
-	if (serverSHA != clientSHA) {
-		std::cout << "checksum is not equal";
-		throw new std::exception("checksum is not equal"); // todo: i should rollback to not have the database in a not valid state!
+	const char* serverBytes = serverSHA.c_str();
+	bool equal = true;
+	for (int i = 0; i < ricevuti; i++) {
+		if (serverBytes[i] != buffer[i]) {
+			equal = false;
+			break;
+		}
 	}
 
-	dbHandler->addChecksum(user, blob, clientSHA);
-
+	if (equal)
+		std::cout << "i due sono diversi!" << std::endl;
+	else
+		dbHandler->addChecksum(user, blob, serverSHA);
+	delete[] buffer;
 	// it is all ok
-
-	*/
 }
 
 void ConnectionHandler::removeFile()
@@ -385,8 +415,6 @@ void ConnectionHandler::downloadPreviousVersion()
 	}
 }
 
-
-
 // this is the function that the new thread will provide. it is simply a loop where i just wait for an input by the user and then call the preformRequestedOperation function
 void ConnectionHandler::operator()()
 {
@@ -477,7 +505,6 @@ void ConnectionHandler::signIn() {
 	std::cout << "in attesa dell'username" << std::endl;
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 20)  std::cout << "Errore! username troppo lungo";
-	std::cout << "username ricevuto" << std::endl;
 
 	// todo: check ricevuto != 0
 
@@ -486,20 +513,16 @@ void ConnectionHandler::signIn() {
 	// username is ok
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
-	std::cout << "in attesa della password" << std::endl;
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 32)  std::cout << "Errore! password troppo lungo";
-	std::cout << "password ricevuta" << std::endl;
-
+	
 	buffer[ricevuti] = '\0';
 	credentials[1] = std::string(buffer);
 	// password is ok
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
-	std::cout << "in attesa del path" << std::endl;
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 255)  std::cout << "Errore! path troppo lungo";
-	std::cout << "path ricevuta" << std::endl;
 
 	buffer[ricevuti] = '\0';
 	credentials[2] = std::string(buffer);
@@ -522,12 +545,17 @@ void ConnectionHandler::signIn() {
 
 	std::cout << "utente creato correttamente" << std::endl;
 
-	std::string folderPath = "C://backupServer/";
+	std::string folderPath = "C:\\ProgramData\\PoliHub\\";
 	folderPath += credentials[0]; // username
 
-	CreateDirectoryA(folderPath.c_str(), NULL); // create directory Ascii. the simple createDirectory wants the path as a wchart
+	// create directory Ascii. the simple createDirectory wants the path as a wchart
+	if (CreateDirectoryA(folderPath.c_str(), NULL) == 0) {
+		std::cerr << "Errore: impossibile creare la cartella per l'utente! errore " << GetLastError() << std::endl;
+		//it would be necessary to undo all what was done in the database!! 
+		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+	}
 	
-	// todo: check if the folder has been created. if not... maybe it would be necessary to undo all what was done in the database!! 
+	
 	// todo: make all this a transaction.
 
 	// if all has gone the right way

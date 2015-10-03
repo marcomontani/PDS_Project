@@ -190,7 +190,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	}
 
 	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
-	return 0;
+	return max;
 }
 
 int DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {

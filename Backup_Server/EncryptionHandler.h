@@ -1,18 +1,33 @@
 #pragma once
-#include <wincrypt.h>
+#include "stdafx.h"
 
 class EncryptionHandler
 {
-	HCRYPTHASH hHash = 0;
-	HCRYPTPROV provider;
 public:
 	EncryptionHandler();
-	~EncryptionHandler();
+	void update(const std::string &s);
+	void update(std::istream &is);
+	std::string final();
+	static std::string from_file(const std::string &filename);
 
-	/* Returns a string that is the result of the sha1 algh. on the file pointed by the path */
-	std::string CalculateFileHash(std::string filePath);
+private:
+	typedef unsigned long int uint32;   /* just needs to be at least 32bit */
+	typedef unsigned long long uint64;  /* just needs to be at least 64bit */
 
-	/* Returns a string that is the result of the sha1 algh. on the string passed */
-	std::string CalculateStringHash(std::string str);
+	static const unsigned int DIGEST_INTS = 5;  /* number of 32bit integers per SHA1 digest */
+	static const unsigned int BLOCK_INTS = 16;  /* number of 32bit integers per SHA1 block */
+	static const unsigned int BLOCK_BYTES = BLOCK_INTS * 4;
+
+	uint32 digest[DIGEST_INTS];
+	std::string buffer;
+	uint64 transforms;
+
+	void reset();
+	void transform(uint32 block[BLOCK_BYTES]);
+
+	static void buffer_to_block(const std::string &buffer, uint32 block[BLOCK_BYTES]);
+	static void read(std::istream &is, std::string &s, int max);
 };
+
+std::string sha1(const std::string &string);
 
