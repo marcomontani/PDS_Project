@@ -515,11 +515,12 @@ void ConnectionHandler::getUserFolder() {
 }
 
 void ConnectionHandler::getUserPath() {
-	if (!logged)  {
+	if (!logged && user.size() == 0)  {
 		int *num = new int;
 		*num = -1;
 		send(connectedSocket, (char*)num, 4, 0);
 		delete num;
+		return;
 	}
 	try {
 		std::string path = dbHandler->getPath(user);

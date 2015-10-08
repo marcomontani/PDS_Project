@@ -18,7 +18,7 @@ public:
 
 private:
 	// variables
-	void (ConnectionHandler::*functions [8] ) (void); // array of functions that can be requested by the user
+	void (ConnectionHandler::*functions [10] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
 	bool logged;
 	DatabaseHandler *dbHandler;
