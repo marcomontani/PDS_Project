@@ -111,6 +111,8 @@ std::string DatabaseHandler::getUserFolder(std::string username)
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
 	
 	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
+	std::cout << "exist query : " << std::endl << query << std::endl;
+
 	int number;
 	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
@@ -130,7 +132,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	
 	if (this->existsFile(username, path, fileName)) throw std::exception("file already exists");
 	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
-	std::string query = "INSERT INTO FILES (name, path, username) VALUES (' " + fileName + " ', ' " + path + "', ' " + username + " ')";
+	std::string query = "INSERT INTO FILES (name, path, username) VALUES ('" + fileName + "', '" + path + "', '" + username + "')";
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
@@ -178,9 +180,22 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	
 	std::cout << "so max is " << max << std::endl;
 
-	std::string t = std::to_string(time(0)); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
-	
-	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" +  t +"', '" + std::to_string(max) +"' )";	
+	std::string timestamp;
+	time_t t = time(0);
+	struct tm now;
+	if (EINVAL == localtime_s(&now, &t))
+		std::cout << "could not fill tm struct" << std::endl;
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
+
+
+	std::cout << "timestamp = " << timestamp << std::endl;
+
+
+	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp +"', '" + std::to_string(max) +"' )";
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		std::cout << "error in insert blob : " << error << std::endl;
@@ -227,9 +242,18 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 			throw std::exception("DbHandler:: createFileForUser-> no select max(blob)");
 		}
 	}
-	time_t t = time(0); // current time. should be an int with the time since 1 Jan 1970. compatible with db??
+	std::string timestamp;
+	time_t t = time(0);
+	struct tm now;
+	if (EINVAL == localtime_s(&now, &t))
+		std::cout << "could not fill tm struct" << std::endl;
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
 
-	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(' " + fileName + " ', ' " + path + "', ' " + username + " ', '" + std::to_string(t) + "', " + std::to_string(max) + " )";
+	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp+ "', " + std::to_string(max) + " )";
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
@@ -292,27 +316,40 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 
 std::string DatabaseHandler::getFileVersions(std::string username, std::string path, std::string filename)
 {
-	if (!existsFile(username, path, filename)) throw std::exception("cannot find the file"); // todo: maybe also if it has been deleted?
+	if (!existsFile(username, path, filename)) {
+		std::cout << "cannot find the file" << std::endl;
+		throw std::exception("cannot find the file"); // todo: maybe also if it has been deleted?
+	}
 
-	std::string versions = "\"versions\" : [";
+	std::string versions = "[";
 	char* error;
 
 	std::string query = "SELECT lastModified FROM VERSIONS WHERE Blob is not NULL AND username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' ORDER BY lastModified DESC";
+
+	std::cout << query << std::endl;
+	OutputDebugStringA(query.c_str());
 
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string* v = (std::string*)data;
 		std::string appendString =
 			"{ \""+ std::string(azColName[0]) +"\" : \""+ std::string(argv[0]) +"\" },";
+		v->append(appendString);
 		return 0;
 	}, &versions, &error);
 
 	if (error != nullptr) {
+		std::cout << "error: " << error << std::endl;
 		sqlite3_free(error);
 		throw std::exception("DbHandler:: getFileVersions -> error while selecting versions");
 	}
-
-	versions[versions.size() - 1]  = ']';
+	std::cout << "the query worked!";
+	if (versions[versions.size() - 1] == ',')
+		versions[versions.size() - 1] = ']';
+	else
+		versions += ']';
 	
+	std::cout << versions << std::endl;
+
 	return versions;
 }
 

@@ -302,45 +302,51 @@ void ConnectionHandler::deleteFile()
 
 void ConnectionHandler::getFileVersions()
 {
-	if (!logged) return;
-	char* buffer = new char[1024];
-	int offset = 0, ricevuti = 0;
-	bool messageFinished = false;
-	// we need to establish an end. for now it will be \r\n
+	if (!logged && user.size() == 0) {
+		std::cout << "not logged" << std::endl;
+		return;
+	}
 
-	while (!messageFinished) {
-		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
+	int dimension;
+	char dim[4];
+	if (recv(connectedSocket, dim, sizeof(int), 0) != sizeof(int)) // reading the dimension of the json string that comes down
+	{
+		std::cout << "did not receive a valid int" << std::endl;
+		senderror();
+		return;
+	}
+	dimension = *((int*)dim);
+	char* buffer = new char[dimension];
+	int offset = 0;
+	
+
+	while (offset != dimension) {
+		int ricevuti = recv(connectedSocket, buffer + offset, dimension - offset, 0);
+
 		if (ricevuti == 0) {
 			delete[] buffer;
 			return; // todo: maybe create disconnectedException
 		}
-		if (ricevuti + offset == 1024) {
-			delete[] buffer;
-			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
-		}
-
-		// did i read it all?
-		for (int i = 0; i < offset + ricevuti; i++) {
-			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-				buffer[i] = '\0';
-				messageFinished = true;
-			}
-		}
-
 		offset += ricevuti;
 	}
+	
 
 	// now i need to split the 2 strings
-	int i = offset - 1; // last char
-	while (buffer[i] != '/') i--;
-	std::string filename(buffer + i);
-	buffer[i + 1] = '\0';
-	std::string path(buffer);
+	int i = dimension - 1; // last char
+	while (buffer[i] != '\\' && i > 0) i--;
 
+	std::string path = "", filename = "";
+	for (int j = 0; j < i; j++) path += buffer[j];
+	for (i = i + 1; i < offset; i++) filename += buffer[i];
+
+
+	std::cout << "path = " << path << std::endl << "filename = " << filename << std::endl;
 
 	std::string versions = dbHandler->getFileVersions(user, path, filename);
 	// maybe here check for an exception
 
+	int versionDim = versions.size();
+	send(connectedSocket, (char*)&versionDim, sizeof(int), 0); 
 	send(connectedSocket, versions.c_str(), versions.size(), 0);
 }
 
