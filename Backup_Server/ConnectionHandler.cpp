@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
+#include <iomanip>
 
 #pragma comment(lib, "Ws2_32.lib") // this line asks to the compiler to use the library ws2_32.lib
 
@@ -19,6 +19,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 		return;
 	}
 	logged = false;
+	user = "";
 
 	functions[0] = &ConnectionHandler::logIn;
 	functions[1] = &ConnectionHandler::signIn;
@@ -57,21 +58,22 @@ void ConnectionHandler::prerformReqestedOperation(int op) {
 
 void ConnectionHandler::uploadFile() {
 	
-	if (!logged) {
-		// todo: send error message
+	if (!logged && user.size() == 0) {
+		senderror();
+		std::cerr << "upload file called while not logged" << std::endl;
 		return;
 	}
 
 	// first of all we need to read the filename
 	// we assume it is terminated with the character '\n' and is the complete filepath + filename
 
-	wchar_t* buffer = new wchar_t[1024];
+	char* buffer = new char[1024];
 	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
 	
 	// i really hope that the name of a file is < 1 KB!
 
 	if (ricevuti == 0) {
-		// maybe trigger an exception here!
+		throw std::exception("client ended comunication");
 		return;
 	}
 
@@ -81,79 +83,130 @@ void ConnectionHandler::uploadFile() {
 		delete[] buffer;
 		return; // todo: or throw an exception?
 	}
+	buffer[ricevuti] = '\0';
+	std::cout << "buffer: " << std::string(buffer) << std::endl;
 
-	if (buffer[ricevuti] != '\n') {
-		std::cout << "Errore! il filename non è arrivato correttamente";
-		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
-		delete[] buffer;
-		return; // todo: or throw an exception?
-	}
 
-	buffer[ricevuti-1] = '\0';
-
-	wchar_t *drive = new wchar_t[2], // example C:
-			*directory = new wchar_t[200], 
-			*filename = new wchar_t[50], 
-			*extension = new wchar_t[10];
-	_wsplitpath_s(buffer, drive, 2, directory, 200, filename, 50, extension, 10);
+	int i = ricevuti - 1;
+	while (buffer[i] != '\\' && i > 0) i--;
 	
-	
-	
-	std::wstring path (drive);
-	path += L"//";
-	path += directory;
+	std::string path = "", file = "";
+	for (int j = 0; j < i; j++) path += buffer[j];
+	for (i = i + 1; i < ricevuti; i++) file += buffer[i];
 
-	std::wstring file(filename);
-	file += L".";
-	file += extension;
 
 	int blob;
-	if (dbHandler->existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
-		blob = dbHandler->createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
-	else
-		blob = dbHandler->createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+	try {
+		if (dbHandler->existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
+			blob = dbHandler->createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+		else
+			blob = dbHandler->createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
 
-
-	send(connectedSocket, "OK", 2, 0);
+	}
+	catch (std::exception e) {
+		std::cout << "error : " << e.what() << std::endl;
+		throw;
+	}
+	std::cout << "blob = " << blob << std::endl;
 
 	// todo: i need to know where the hell the main folder is!
+	std::string writerPath("C:\\ProgramData\\Polihub\\" + user);
+	std::cout << "path = " << writerPath << std::endl;
 
-	std::wstring writerPath(L"C:\\BackupFolders\\");
-	writerPath += (std::wstring(user.begin(), user.end()) + std::to_wstring(blob));
+	SECURITY_ATTRIBUTES attr;
 
-	std::wfstream writer(writerPath, std::ios::binary); // open the stream on the file, that is a binary stream
+	writerPath += "\\" + std::to_string(blob);
+
+	std::cout << "file complete path = " << writerPath << std::endl;
+
+	std::fstream writer(writerPath, std::ios::binary | std::ios::out); // open the stream on the file, that is a binary stream
+	
+	if (!writer.is_open()) {
+		std::cerr << "Impossible to create the file stream " << std::endl;
+		send(connectedSocket, "ERR", 4, 0);
+		return;
+	}
+	std::cout << "Il file e' stato salvato correttamente " << std::endl;
+
+
+	send(connectedSocket, "OK", 3, 0);
+	
 	unsigned int dimension;
-	recv(connectedSocket, (char*)&dimension, sizeof(int), 0);
+	
+	recv(connectedSocket, buffer, sizeof(int), 0);
+	dimension = *((int*)buffer); // i take the first 4 bytes
+
+	std::cout << "the file " << file << " has " << dimension << "bytes" << std::endl;
 
 	while (dimension > 0) {
-		ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);	
+		ricevuti = recv(connectedSocket, buffer, 1024, 0);
+		if (ricevuti == 0) {
+			std::cout << "connection Aborted by the server" << std::endl;
+			writer.close();
+			DeleteFileA(writerPath.c_str());
+			throw std::exception("connection closed");
+		}
+		if (ricevuti < 0) {
+			std::cout << "connection error!!" << std::endl;
+			writer.close();
+			DeleteFileA(writerPath.c_str());
+			send(connectedSocket, "ERR", 4, 0);
+			return;
+		}
 		writer.write(buffer, ricevuti);
 		dimension -= ricevuti;
 	}
 
-	send(connectedSocket, "OK", 3, 0); // need this to divide the file from the checksum. else i would have to consider in the last iteration the possibility that all or a part of the checksum is received
+	if(dimension == 0)
+		send(connectedSocket, "OK", 3, 0); // need this to divide the file from the checksum. else i would have to consider in the last iteration the possibility that all or a part of the checksum is received
+	else
+		send(connectedSocket, "ERR", 4, 0);
 
+	writer.close();
 	// the checksum calculated with sha1 has always the same length: 20 bytes
 
+	/*
 	int checksumToRead = 20;
 	int offset = 0;
 	while (checksumToRead > 0) {
-		ricevuti = recv(connectedSocket, (char*)buffer + offset, checksumToRead, 0);
+		ricevuti = recv(connectedSocket, buffer + offset, checksumToRead, 0);
 		offset += ricevuti;
 		checksumToRead -= ricevuti;
 	}
-	buffer[20] = '\0';
+	*/
+
+	ricevuti = recv(connectedSocket, buffer, 1000, 0);
+	std::cout << "il client mi ha mandato " << ricevuti << " bytes di sha1" << std::endl << std::endl;
 
 	EncryptionHandler eHndler;
+	std::string serverSHA;
+	try {
+		serverSHA = eHndler.from_file(writerPath);
+	}
+	catch (std::exception e) {
+		std::cout << "exception: " << e.what() << std::endl;
+		// todo: remove database entries. problem -> was the file new or was it just a version? maybe we just need to delete the version, then count how many versions there are. if 0 delete file from the other table
+		DeleteFileA(writerPath.c_str());
+		send(connectedSocket, "ERR", 4, 0);
+		delete[] buffer;
+		return;
+	}
 	
-	
-	std::string serverSHA = eHndler.CalculateFileHash(std::string(writerPath.begin(), writerPath.end()));
-	std::string clientSHA = (char*)buffer;
 
-	if (serverSHA != clientSHA) throw new std::exception("checksum is not equal"); // todo: i should rollback to not have the database in a not valid state!
+	const char* serverBytes = serverSHA.c_str();
+	bool equal = true;
+	for (int i = 0; i < ricevuti; i++) {
+		if (serverBytes[i] != buffer[i]) {
+			equal = false;
+			break;
+		}
+	}
 
-	dbHandler->addChecksum(user, blob, clientSHA);
-
+	if (equal)
+		std::cout << "i due sono diversi!" << std::endl;
+	else
+		dbHandler->addChecksum(user, blob, serverSHA);
+	delete[] buffer;
 	// it is all ok
 }
 
@@ -362,8 +415,6 @@ void ConnectionHandler::downloadPreviousVersion()
 	}
 }
 
-
-
 // this is the function that the new thread will provide. it is simply a loop where i just wait for an input by the user and then call the preformRequestedOperation function
 void ConnectionHandler::operator()()
 {
@@ -381,8 +432,13 @@ void ConnectionHandler::operator()()
 		operation = *((int*)buffer);
 		std::cout << "richiesta operazione " << operation << std::endl;
 
-
-		if(operation >= 0) this->prerformReqestedOperation(operation);
+		try {
+			if (operation >= 0) this->prerformReqestedOperation(operation);
+		}
+		catch (std::exception) { // todo: modify into userloggeoutexception
+			std::cout << "user logged out" << std::endl;
+			return;
+		}
 	 } while (operation >= 0); // exit = [ operation -1 ]
 }
 
@@ -403,8 +459,6 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	username.append(buffer);
 
-	std::cout << "Login: received username : " << username <<" di " << ricevuti <<" byte "<< std::endl;
-
 	send(connectedSocket, "OK", 3, 0);
 
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
@@ -413,7 +467,7 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	password.append(buffer);
 	
-	std::cout << "Login: received password : " << password << " di " << ricevuti << " byte " << std::endl;
+	
 
 	// todo: check ricevuto != 0
 
@@ -422,17 +476,21 @@ void ConnectionHandler::logIn() {
 
 	if (username.size() == 0 || password.size()== 0) {
 		std::cout << "Errore! Username o password non arrivati";
+		send(connectedSocket, "ERR", 4, 0);
 		return;
 	}
 
-	bool logged = dbHandler->logUser(username, password);
-
-	// todo: ok now i am logged. study how to use this information
-	if (logged) {
+	
+	if (dbHandler->logUser(username, password)) {
 		user = username;
+		logged = true;
 		send(connectedSocket, "OK", 3, 0);
 	}
-	else send(connectedSocket, "ERR", 4, 0);
+	else {
+		send(connectedSocket, "ERR", 4, 0);
+		logged = false;
+		user = "";
+	}
 }
 
 void ConnectionHandler::signIn() {
@@ -447,7 +505,6 @@ void ConnectionHandler::signIn() {
 	std::cout << "in attesa dell'username" << std::endl;
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 20)  std::cout << "Errore! username troppo lungo";
-	std::cout << "username ricevuto" << std::endl;
 
 	// todo: check ricevuto != 0
 
@@ -456,20 +513,16 @@ void ConnectionHandler::signIn() {
 	// username is ok
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
-	std::cout << "in attesa della password" << std::endl;
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 32)  std::cout << "Errore! password troppo lungo";
-	std::cout << "password ricevuta" << std::endl;
-
+	
 	buffer[ricevuti] = '\0';
 	credentials[1] = std::string(buffer);
 	// password is ok
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 
-	std::cout << "in attesa del path" << std::endl;
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
 	if (ricevuti > 255)  std::cout << "Errore! path troppo lungo";
-	std::cout << "path ricevuta" << std::endl;
 
 	buffer[ricevuti] = '\0';
 	credentials[2] = std::string(buffer);
@@ -492,12 +545,17 @@ void ConnectionHandler::signIn() {
 
 	std::cout << "utente creato correttamente" << std::endl;
 
-	std::string folderPath = "C://backupServer/";
+	std::string folderPath = "C:\\ProgramData\\PoliHub\\";
 	folderPath += credentials[0]; // username
 
-	CreateDirectoryA(folderPath.c_str(), NULL); // create directory Ascii. the simple createDirectory wants the path as a wchart
+	// create directory Ascii. the simple createDirectory wants the path as a wchart
+	if (CreateDirectoryA(folderPath.c_str(), NULL) == 0) {
+		std::cerr << "Errore: impossibile creare la cartella per l'utente! errore " << GetLastError() << std::endl;
+		//it would be necessary to undo all what was done in the database!! 
+		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+	}
 	
-	// todo: check if the folder has been created. if not... maybe it would be necessary to undo all what was done in the database!! 
+	
 	// todo: make all this a transaction.
 
 	// if all has gone the right way
@@ -509,27 +567,42 @@ void ConnectionHandler::signIn() {
 
 void ConnectionHandler::getUserFolder() {
 	std::string currentFolder;
-	if (!logged) return;
-	currentFolder = dbHandler->getUserFolder(user);
-	send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
+	if (!logged && user.size() == 0) {
+		std::cout << "Not Logged!!" << std::endl;
+		senderror();
+		return;
+	}
+	try {
+		currentFolder = dbHandler->getUserFolder(user);
+		send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
+	}
+	catch (std::exception e) {
+		std::cerr << "dbHandler->getUserFolder(user) threw: " << e.what() << std::endl;
+		senderror();
+	}
 }
 
 void ConnectionHandler::getUserPath() {
-	if (!logged && user.size() == 0)  {
-		int *num = new int;
-		*num = -1;
-		send(connectedSocket, (char*)num, 4, 0);
-		delete num;
+	if (logged == false && user.size() == 0)  {
+		std::cout << "Not Logged!!" << std::endl;
+		std::cout << "user = '" + user +"'" << std::endl;
+		senderror();
 		return;
 	}
 	try {
 		std::string path = dbHandler->getPath(user);
-		send(connectedSocket, path.c_str(), path.size(), 0);
+		int inviati = send(connectedSocket, path.c_str(), path.size(), 0);
 	}
 	catch (std::exception e) {
-		int *num = new int;
-		*num = -1;
-		send(connectedSocket, (char*)num, 4, 0);
-		delete num;
+		std::cout << "dbHandler->getPath threw exception " << std::endl;
+		senderror();
 	}
+}
+
+
+void ConnectionHandler::senderror() {
+	int *num = new int;
+	*num = -1;
+	send(connectedSocket, (char*)num, 4, 0);
+	delete num;
 }

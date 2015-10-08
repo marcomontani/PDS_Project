@@ -37,6 +37,7 @@ private:
 	void getUserFolder();
 	void getUserPath();
 
+	void senderror();
 
 };
 
