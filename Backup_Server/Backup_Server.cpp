@@ -10,6 +10,14 @@ int threads_number = 0;
 
 int main()
 {
+	if (CreateDirectoryA("C:\\ProgramData\\PoliHub", NULL) == 0) {
+		if (GetLastError() != ERROR_ALREADY_EXISTS) {
+			std::cout << "Errore, non posso creare polihub in program data";
+		}
+	}
+
+
+
 	WSADATA sockData;
 	if (WSAStartup(MAKEWORD(2,2), &sockData) != 0) {
 		std::cout << "WSAStartup failed!" << std::endl;
