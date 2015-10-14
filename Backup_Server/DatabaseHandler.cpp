@@ -112,6 +112,7 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 	
 	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
 	std::cout << "exist query : " << std::endl << query << std::endl;
+	OutputDebugStringA(query.c_str());
 
 	int number;
 	char* error;
@@ -216,13 +217,14 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	sqlite3_exec(database, "BEGIN EXCLUSIVE TRANSACTION", nullptr, nullptr, nullptr);
 
 
-	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "')";
+	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "'";
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);	
 		return 0;
 	}, &count, &error);
 
 	if (error != nullptr) {
+		std::cout << "error : " << error << std::endl;
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: createFileForUser-> no select count(blobs)");
