@@ -133,5 +133,9 @@ public:
 		If username and password match, it gives the path. otherwise an exception is thrown
 	*/
 	std::string getPath(std::string username);
+
+
+	void addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob);
 };
+
 

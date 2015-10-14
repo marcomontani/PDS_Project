@@ -365,55 +365,103 @@ void ConnectionHandler::downloadPreviousVersion()
 	bool messageFinished = false;
 	// we need to establish an end. for now it will be \r\n
 
-	while (!messageFinished) {
-		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
-		if (ricevuti == 0) {
-			delete[] buffer;
-			return; // todo: maybe create disconnectedException
-		}
-		if (ricevuti + offset == 1024) {
-			delete[] buffer;
-			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
-		}
+	
+	int pathLen, version_len;
+	std::string path = "";
+	std::string date = "";
+	std::string filename = "";
 
-		// did i read it all?
-		for (int i = 0; i < offset + ricevuti; i++) {
-			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-				buffer[i] = '\0';
-				messageFinished = true;
-			}
-		}
-
-		offset += ricevuti;
+	recv(connectedSocket, (char*)&pathLen, sizeof(int), 0);
+	int letti = 0;
+	if (pathLen < 0 || pathLen >= 1024) {
+		send(connectedSocket, "ERR", 2, 0);
+		return;
 	}
+	while (letti < pathLen) {
+		ricevuti = recv(connectedSocket, buffer + letti, pathLen-letti, 0);
+		letti += ricevuti;
+	}
+	buffer[pathLen] = '\0';
+	path.append(buffer);
+	// now i have the complete path
 
-	// now i need to split the 2 strings. i have 'path date'
-	int i = offset - 1; // last char
-	while (buffer[i] != '/') i--; // go back to the path'/'filename 
+	send(connectedSocket, "OK", 2, 0);
+	recv(connectedSocket, (char*)&version_len, sizeof(int), 0);
+	letti = 0;
+	if (version_len < 0 || version_len >= 1024) {
+		send(connectedSocket, "ERR", 2, 0);
+		return;
+	}
+	while (letti < version_len) {
+		ricevuti = recv(connectedSocket, buffer + letti, version_len - letti, 0);
+		letti += ricevuti;
+	}
+	buffer[version_len] = '\0';
+	date.append(buffer);	
+	send(connectedSocket, "OK", 2, 0);
+	// now i have the version
 
-	buffer[i] = '\0';
-	std::string filename(buffer + i + 1);
+	// now i need to separate the filename from the path
+	int i = pathLen-1;
+	while (path[i] != '\\') {
+		filename.insert(filename.begin(), path[i]);
+		i--;
+	}
+	path = path.erase(i, std::string::npos);
 
-	while (buffer[i] != ' ') i++;
-	// i am exactly on the separator between filename and date. 
-	buffer[i] = '\0';
-	std::string path(buffer);
-	std::string date (buffer + i + 1);
+	std::cout << "path : " << path << std::endl << "filename : " << filename << std::endl << "version : " << date << std::endl;
+
 
 	try {
 		int blob = dbHandler->getBlob(user, path, filename, date);
-		if (blob < 0) return;
+		if (blob < 0) {
+			int n = -1;
+			send(connectedSocket, (char*)&n, sizeof(int), 0); // sending a wrong file dimension 
+			return;
+		}
 
 		// now the standard send of a file
-		std::wstring readPath(L"C:\\BackupFolders\\");
-		readPath += (std::wstring(user.begin(), user.end()) + std::to_wstring(blob));
+		std::string readPath("C:\\ProgramData\\PoliHub\\");
+		readPath += (user + "\\" + std::to_string(blob));
+		
+		struct stat s;
+		stat(readPath.c_str(), &s);
+		int fdim = s.st_size;
 
-		std::wifstream reader(readPath, std::ios::binary);
-		wchar_t *buffer = new wchar_t[1024];
+		send(connectedSocket, (char*)&fdim, sizeof(int), 0);
+
+		std::ifstream reader(readPath, std::ios::binary);
+		char *buffer = new char[1024];
 		while (!reader.eof()) {
 			reader.read(buffer, 1024);
 			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
 		}
+
+
+		recv(connectedSocket, buffer, 5, 0);
+
+		if (strncmp(buffer, "OK", 2) != 0) // did not receive ok
+			return;
+		
+		EncryptionHandler eHandler;
+		std::string checksum = eHandler.from_file(readPath); // todo: maybe best to read it from db??
+		send(connectedSocket, checksum.c_str(), checksum.length(), 0);
+
+		recv(connectedSocket, buffer, 5, 0);
+
+		if (strncmp(buffer, "OK", 2) != 0) // did not receive ok
+			return;
+
+		delete[] buffer;
+		reader.close();
+
+		try {
+			dbHandler->addVersion(user, path, filename, date, blob);
+		}
+		catch (std::exception) {
+			send(connectedSocket, "ERR", 3, 0);
+		}
+		send(connectedSocket, "OK", 2, 0);
 	}
 	catch (std::exception e) {
 		std::cout << e.what();

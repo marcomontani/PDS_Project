@@ -287,7 +287,18 @@ void DatabaseHandler::deleteFile(std::string username, std::string path, std::st
 	}
 }
 
+void DatabaseHandler::addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob) 
+{
+	if (!existsFile(username, path, filename)) throw std::exception("the file does not exist");
+	char* error;
+	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + lastModified + "', " + std::to_string(blob) + " )";
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
+	if (error != nullptr) {
+		sqlite3_free(error);
+		throw std::exception("DbHandler:: createFileForUser-> no insert new version");
+	}
+}
 
 void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename) {
 	if (!existsFile(username, path, filename)) throw std::exception("no file to delete");
@@ -433,6 +444,7 @@ bool DatabaseHandler::isDeleted(std::string username, std::string path, std::str
 	}
 	return validBlob == 0;
 }
+
 std::string DatabaseHandler::getPath(std::string username)
 {
 	
