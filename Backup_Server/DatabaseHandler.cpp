@@ -87,7 +87,7 @@ std::string DatabaseHandler::getUserFolder(std::string username)
 
 
 	if (error != nullptr) {
-		std::cout << "error : " << error << std::endl;
+		std::cout << "error getUserFolder: " << error << std::endl;
 		sqlite3_free(error);
 		throw std::exception("error while getting the filesystem for the user ");
 	}

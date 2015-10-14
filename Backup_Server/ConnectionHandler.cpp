@@ -580,6 +580,7 @@ void ConnectionHandler::getUserFolder() {
 	}
 	try {
 		currentFolder = dbHandler->getUserFolder(user);
+		std::cout << "user folder is " << currentFolder << std::endl;
 		send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
 	}
 	catch (std::exception e) {
