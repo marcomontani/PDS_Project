@@ -20,6 +20,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	}
 	logged = false;
 	user = "";
+	folderPath = "";
 
 	functions[0] = &ConnectionHandler::logIn;
 	functions[1] = &ConnectionHandler::signIn;
@@ -68,13 +69,14 @@ void ConnectionHandler::uploadFile() {
 	// we assume it is terminated with the character '\n' and is the complete filepath + filename
 
 	char* buffer = new char[1024];
+	memset(buffer, 0, 1024);
 	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
 	
 	// i really hope that the name of a file is < 1 KB!
 
 	if (ricevuti == 0) {
 		throw std::exception("client ended comunication");
-		return;
+		return; // todo: or throw?? 
 	}
 
 	if (ricevuti >= 262) {
@@ -84,8 +86,8 @@ void ConnectionHandler::uploadFile() {
 		return; // todo: or throw an exception?
 	}
 	buffer[ricevuti] = '\0';
-	std::cout << "buffer: " << std::string(buffer) << std::endl;
-
+	std::cout << "buffer: " << buffer << std::endl;
+	std::cout << "|buffer|: " << std::to_string(ricevuti) << std::endl;
 
 	int i = ricevuti - 1;
 	while (buffer[i] != '\\' && i > 0) i--;
@@ -93,6 +95,18 @@ void ConnectionHandler::uploadFile() {
 	std::string path = "", file = "";
 	for (int j = 0; j < i; j++) path += buffer[j];
 	for (i = i + 1; i < ricevuti; i++) file += buffer[i];
+
+
+
+	// now i need to modify the path in order to remove the user folder.
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
+
+	path = path.erase(0, folderPath.size());
+	std::cout << "new path : " << path;
 
 
 	int blob;
@@ -165,16 +179,6 @@ void ConnectionHandler::uploadFile() {
 	writer.close();
 	// the checksum calculated with sha1 has always the same length: 20 bytes
 
-	/*
-	int checksumToRead = 20;
-	int offset = 0;
-	while (checksumToRead > 0) {
-		ricevuti = recv(connectedSocket, buffer + offset, checksumToRead, 0);
-		offset += ricevuti;
-		checksumToRead -= ricevuti;
-	}
-	*/
-
 	ricevuti = recv(connectedSocket, buffer, 1000, 0);
 	std::cout << "il client mi ha mandato " << ricevuti << " bytes di sha1" << std::endl << std::endl;
 
@@ -210,6 +214,8 @@ void ConnectionHandler::uploadFile() {
 	// it is all ok
 }
 
+
+// todo: modify how this function works
 void ConnectionHandler::removeFile()
 {
 	if (!logged) return;
@@ -257,6 +263,7 @@ void ConnectionHandler::removeFile()
 	WARNING: this function is really identical to removeFile. just it is called dbelper.removeFile instead of dbHelper.deleteFile.
 				make them call the same function with an additional parameter could be better
 */
+// todo: modify how this function works
 void ConnectionHandler::deleteFile()
 {
 	if (!logged) return;
@@ -339,6 +346,14 @@ void ConnectionHandler::getFileVersions()
 	for (int j = 0; j < i; j++) path += buffer[j];
 	for (i = i + 1; i < offset; i++) filename += buffer[i];
 
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
+
+	path = path.erase(0, folderPath.size());
+
 
 	std::cout << "path = " << path << std::endl << "filename = " << filename << std::endl;
 
@@ -352,8 +367,8 @@ void ConnectionHandler::getFileVersions()
 
 void ConnectionHandler::getDeletedFiles()
 {
-	if (!logged) return;
-	std::string deletedFiles = dbHandler->getDeletedFiles(user);
+	if (!logged && user.size() == 0) return;
+	std::string deletedFiles = dbHandler->getDeletedFiles(user, folderPath);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
 }
 
@@ -363,8 +378,6 @@ void ConnectionHandler::downloadPreviousVersion()
 	char* buffer = new char[1024];
 	int offset = 0, ricevuti = 0;
 	bool messageFinished = false;
-	// we need to establish an end. for now it will be \r\n
-
 	
 	int pathLen, version_len;
 	std::string path = "";
@@ -385,7 +398,16 @@ void ConnectionHandler::downloadPreviousVersion()
 	path.append(buffer);
 	// now i have the complete path
 
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
+
+	path = path.erase(0, folderPath.size());
 	send(connectedSocket, "OK", 2, 0);
+
+
 	recv(connectedSocket, (char*)&version_len, sizeof(int), 0);
 	letti = 0;
 	if (version_len < 0 || version_len >= 1024) {
@@ -539,11 +561,17 @@ void ConnectionHandler::logIn() {
 		user = username;
 		logged = true;
 		send(connectedSocket, "OK", 3, 0);
+
+		// todo: modify this and read the folder of the user from the tcp stream
+		folderPath = dbHandler->getPath(user);
+
+
 	}
 	else {
 		send(connectedSocket, "ERR", 4, 0);
 		logged = false;
 		user = "";
+		folderPath = "";
 	}
 }
 
@@ -588,6 +616,7 @@ void ConnectionHandler::signIn() {
 
 	try {
 		dbHandler->registerUser(credentials[0], credentials[1], credentials[2]);
+		
 	}
 	catch (std::exception e) {
 		std::cout << "error: " << e.what();
@@ -615,6 +644,7 @@ void ConnectionHandler::signIn() {
 	// if all has gone the right way
 	logged = true;
 	user = credentials[0];
+	folderPath = credentials[2];
 
 	send(connectedSocket, "OK", 3, 0); // TODO: modify this with an enum
 }
@@ -627,7 +657,7 @@ void ConnectionHandler::getUserFolder() {
 		return;
 	}
 	try {
-		currentFolder = dbHandler->getUserFolder(user);
+		currentFolder = dbHandler->getUserFolder(user, folderPath);
 		std::cout << "user folder is " << currentFolder << std::endl;
 		send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
 	}

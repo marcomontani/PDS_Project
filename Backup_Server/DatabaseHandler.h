@@ -32,12 +32,13 @@ public:
 	/*
 	function : getUserFolder
 	@param : username
+	@param : baseDirectory
 	This function returns for each file of the selected user:
 		1) path
 		2) name
 		3) lasted version (blob)
 	*/
-	std::string getUserFolder(std::string);
+	std::string getUserFolder(std::string, std::string);
 
 	/*
 	function : existsFile
@@ -108,8 +109,11 @@ public:
 
 	/*
 	@param : username
+	@param : folderPath
+
+	This function searched for all the files that have been deleted by the users.
 	*/
-	std::string getDeletedFiles(std::string);
+	std::string getDeletedFiles(std::string, std::string);
 
 
 	/*
@@ -134,7 +138,9 @@ public:
 	*/
 	std::string getPath(std::string username);
 
-
+	/*
+	This function add a new version for a file. it is used when i want to add a new file but i alrady have the blob where that version is saved
+	*/
 	void addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob);
 };
 

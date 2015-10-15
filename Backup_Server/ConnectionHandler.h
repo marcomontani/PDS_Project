@@ -23,6 +23,7 @@ private:
 	bool logged;
 	DatabaseHandler *dbHandler;
 	std::string user;
+	std::string folderPath;
 
 	// functions
 	void signIn();

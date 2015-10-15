@@ -70,20 +70,27 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 	
 }
 
-// this function return something like "folder": [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
-std::string DatabaseHandler::getUserFolder(std::string username)
+// this function return something like [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
+std::string DatabaseHandler::getUserFolder(std::string username, std::string basePath) // todo: add baseDirectory
 {
 	std::string query = "SELECT name, path FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
 							SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
 	
 	std::string jsonFolder = "[";
+
+	std::string* params[2];
+	params[0] = &jsonFolder;
+	params[1] = &basePath;
+
 	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
-		std::string *folder = (std::string*)data;		
-		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + std::string(argv[1]) + "\" },";
+
+		std::string *folder = ((std::string**)data)[0];
+		std::string bPath = *((std::string**)data)[1];
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + bPath + std::string(argv[1]) + "\" },";
 		folder->append(appendString);
 		return 0;
-	}, &jsonFolder, &error);
+	}, params, &error);
 
 
 	if (error != nullptr) {
@@ -378,20 +385,25 @@ void DatabaseHandler::addChecksum(std::string username, int blob, std::string ch
 	}
 }
 
-std::string DatabaseHandler::getDeletedFiles(std::string username)
+std::string DatabaseHandler::getDeletedFiles(std::string username, std::string basePath)
 {
 	std::string query = "SELECT path, name FROM VERSIONS V WHERE username = '" + username + "'AND Blob IS NULL AND lastModified = (\
 							SELECT MAX(lastModified) FROM VERSIONS WHERE username ='" + username + "' AND name = V.name AND path = V.path)";
 	
-	std::string result = " \"DeletedFiles\": [";
+	std::string result = "[";
+
+	std::string* params[2];
+	params[0] = &result;
+	params[1] = &basePath;
 	char* error;
 
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
-		std::string* v = (std::string*)data;
+		std::string* v = ((std::string**)data)[0];
+		std::string base = *((std::string**)data)[1];
 		std::string appendString =
-			"{ \"" + std::string(azColName[0]) + "\" : \"" + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+			"{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
 		return 0;
-	}, &result, &error);
+	}, params, &error);
 
 	if (error != nullptr) {
 		sqlite3_free(error);
@@ -447,7 +459,6 @@ bool DatabaseHandler::isDeleted(std::string username, std::string path, std::str
 
 std::string DatabaseHandler::getPath(std::string username)
 {
-	
 	char* error;
 	std::string path = "";
 	std::string query = "SELECT folder FROM USERS WHERE username='"+username+"'";
