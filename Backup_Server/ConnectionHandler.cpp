@@ -70,13 +70,12 @@ void ConnectionHandler::uploadFile() {
 
 	char* buffer = new char[1024];
 	memset(buffer, 0, 1024);
-	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
+	int ricevuti = recv(connectedSocket, buffer, 1024, 0);
 	
 	// i really hope that the name of a file is < 1 KB!
 
 	if (ricevuti == 0) {
 		throw std::exception("client ended comunication");
-		return; // todo: or throw?? 
 	}
 
 	if (ricevuti >= 262) {
@@ -521,7 +520,6 @@ void ConnectionHandler::operator()()
 void ConnectionHandler::logIn() {
 	
 	// todo: check this
-	// i assume it will arrive "username password"
 
 	std::string username = "";
 	std::string password = "";
@@ -530,15 +528,22 @@ void ConnectionHandler::logIn() {
 	memset(buffer, 0, 50);
 
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti > 20)return;
+	if (ricevuti > 20) 
+	{ 
+		send(connectedSocket, "ERR", 3, 0);
+		return; 
+	}
 	if (ricevuti == 0) throw std::exception("user disconnected");
 	buffer[ricevuti] = '\0';
 	username.append(buffer);
 
-	send(connectedSocket, "OK", 3, 0);
+	send(connectedSocket, "OK", 2, 0);
 
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti > 32)return;
+	if (ricevuti > 32) {
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
 	if (ricevuti == 0) throw std::exception("user disconnected");
 	buffer[ricevuti] = '\0';
 	password.append(buffer);
@@ -690,4 +695,30 @@ void ConnectionHandler::senderror() {
 	*num = -1;
 	send(connectedSocket, (char*)num, 4, 0);
 	delete num;
+}
+
+// todo: check is this is really useful
+std::string ConnectionHandler::receiveString(unsigned int max) {
+	char* buffer = new char[1024];
+	memset(buffer, 0, 1024);
+	int ricevuti = recv(connectedSocket, buffer, 1024, 0);
+
+	// i really hope that the name of a file is < 1 KB!
+
+	if (ricevuti == 0) {
+		throw std::exception("client ended comunication");
+	}
+
+	if (max != 0) {
+		if (ricevuti >= 262) {
+			std::cout << "Errore! Nome troppo lungo";
+			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+			delete[] buffer;
+			return ""; // todo: or throw an exception?
+		}
+	}
+
+	std::string appo(buffer);
+	delete[] buffer;
+	return appo;
 }

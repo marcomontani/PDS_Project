@@ -476,7 +476,3 @@ std::string DatabaseHandler::getPath(std::string username)
 		throw std::exception("username does not exist");
 	return path;
 }
-
-
-
-

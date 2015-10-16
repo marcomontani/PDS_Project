@@ -37,8 +37,10 @@ private:
 	void prerformReqestedOperation(int);
 	void getUserFolder();
 	void getUserPath();
-
+	// internal functions
 	void senderror();
-
+	std::string receiveString(unsigned int);
+	
+	
 };
 
