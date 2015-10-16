@@ -273,41 +273,49 @@ void ConnectionHandler::deleteFile()
 {
 	if (!logged) return;
 	char* buffer = new char[1024];
-	int offset = 0, ricevuti = 0;
+	memset(buffer, 0, 1024);
+	int ricevuti = 0;
 	bool messageFinished = false;
-	// we need to establish an end. for now it will be \r\n
-
-	while (!messageFinished) {
-		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
-		if (ricevuti == 0) {
-			delete[] buffer;
-			return; // todo: maybe create disconnectedException
-		}
-		if (ricevuti + offset == 1024) {
-			delete[] buffer;
-			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
-		}
-
-		// did i read it all?
-		for (int i = 0; i < offset + ricevuti; i++) {
-			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-				buffer[i] = '\0';
-				messageFinished = true;
-			}
-		}
-
-		offset += ricevuti;
+	try {
+		std::string appo = receiveString(256).c_str();
+		memcpy(buffer, appo.c_str(), appo.size());
+		ricevuti = appo.size();
+	}
+	catch (std::exception) {
+		throw; // the client has closed the connection
+	}
+	if (ricevuti == 0) {
+		std::cout << "the user sent me a wrong string!" << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+		return;
 	}
 
 	// now i need to split the 2 strings
-	int i = offset - 1; // last char
-	while (buffer[i] != '/') i--;
-	std::string filename(buffer + i);
-	buffer[i + 1] = '\0';
+	int i = ricevuti- 1; // last char
+	std::string filename = "";
+	while (buffer[i] != '\\') {
+		filename.insert(0, 1, buffer[i]);
+		i--;
+	}
+	buffer[i] = '\0';
 	std::string path(buffer);
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
 
+	path = path.erase(0, folderPath.size());
+	std::cout << "new path : " << path << std::endl;
 	// todo: check this out!!
-	dbHandler->deleteFile(user, path, filename);
+	try {
+		dbHandler->deleteFile(user, path, filename);
+	}
+	catch (std::exception e) {
+		std::cout << "Errore in dbHandler->deleteFile " << e.what() << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+	}
+	send(connectedSocket, "OK", 2, 0);
 
 	delete[] buffer;
 }

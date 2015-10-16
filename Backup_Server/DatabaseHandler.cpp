@@ -283,7 +283,16 @@ void DatabaseHandler::deleteFile(std::string username, std::string path, std::st
 	
 	
 	time_t t = time(0); 
-	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + std::to_string(t) + "', NULL )";
+	std::string timestamp = "";
+	struct tm now;
+	if (EINVAL == localtime_s(&now, &t))
+		std::cout << "could not fill tm struct" << std::endl;
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
+	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" +timestamp + "', NULL )";
 
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
