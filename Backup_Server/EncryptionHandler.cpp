@@ -16,9 +16,7 @@ Translation to simpler C++ Code
 */
 
 #include "EncryptionHandler.h"
-#include <sstream>
-#include <iomanip>
-#include <fstream>
+#include "stdafx.h"
 
 /* Help macros */
 #define SHA1_ROL(value, bits) (((value) << (bits)) | (((value) & 0xffffffff) >> (32 - (bits))))

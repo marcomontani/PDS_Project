@@ -18,12 +18,13 @@ public:
 
 private:
 	// variables
+	std::string folderPath;
 	void (ConnectionHandler::*functions [10] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
 	bool logged;
 	DatabaseHandler *dbHandler;
 	std::string user;
-	std::string folderPath;
+	
 
 	// functions
 	void signIn();

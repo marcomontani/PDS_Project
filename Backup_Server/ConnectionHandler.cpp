@@ -80,7 +80,7 @@ void ConnectionHandler::uploadFile() {
 	}
 
 	if (ricevuti >= 262) {
-		std::cout << "Errore! Nome troppo lungo";
+		std::cout << "Errore! Nome troppo lungo" << std::endl;
 		send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
 		delete[] buffer;
 		return; // todo: or throw an exception?
@@ -106,15 +106,14 @@ void ConnectionHandler::uploadFile() {
 	}
 
 	path = path.erase(0, folderPath.size());
-	std::cout << "new path : " << path;
-
+	std::cout << "new path : " << path << std::endl;
 
 	int blob;
 	try {
-		if (dbHandler->existsFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end())))
-			blob = dbHandler->createNewBlobForFile(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+		if (dbHandler->existsFile(user, path, file))
+			blob = dbHandler->createNewBlobForFile(user, path, file);
 		else
-			blob = dbHandler->createFileForUser(user, std::string(path.begin(), path.end()), std::string(file.begin(), file.end()));
+			blob = dbHandler->createFileForUser(user, path, file);
 
 	}
 	catch (std::exception e) {
@@ -125,10 +124,6 @@ void ConnectionHandler::uploadFile() {
 
 	// todo: i need to know where the hell the main folder is!
 	std::string writerPath("C:\\ProgramData\\Polihub\\" + user);
-	std::cout << "path = " << writerPath << std::endl;
-
-	SECURITY_ATTRIBUTES attr;
-
 	writerPath += "\\" + std::to_string(blob);
 
 	std::cout << "file complete path = " << writerPath << std::endl;
@@ -140,15 +135,11 @@ void ConnectionHandler::uploadFile() {
 		send(connectedSocket, "ERR", 4, 0);
 		return;
 	}
-	std::cout << "Il file e' stato salvato correttamente " << std::endl;
-
-
 	send(connectedSocket, "OK", 3, 0);
 	
 	unsigned int dimension;
 	
-	recv(connectedSocket, buffer, sizeof(int), 0);
-	dimension = *((int*)buffer); // i take the first 4 bytes
+	recv(connectedSocket, (char*)&dimension, sizeof(int), 0);
 
 	std::cout << "the file " << file << " has " << dimension << "bytes" << std::endl;
 
@@ -179,8 +170,9 @@ void ConnectionHandler::uploadFile() {
 	writer.close();
 	// the checksum calculated with sha1 has always the same length: 20 bytes
 
+	memset(buffer, 0, 1024);
 	ricevuti = recv(connectedSocket, buffer, 1000, 0);
-	std::cout << "il client mi ha mandato " << ricevuti << " bytes di sha1" << std::endl << std::endl;
+	std::cout << "il client mi ha mandato " << ricevuti << " bytes di sha1:" << std::endl << buffer << std::endl;
 
 	EncryptionHandler eHndler;
 	std::string serverSHA;
@@ -191,12 +183,19 @@ void ConnectionHandler::uploadFile() {
 		std::cout << "exception: " << e.what() << std::endl;
 		// todo: remove database entries. problem -> was the file new or was it just a version? maybe we just need to delete the version, then count how many versions there are. if 0 delete file from the other table
 		DeleteFileA(writerPath.c_str());
-		send(connectedSocket, "ERR", 4, 0);
+		send(connectedSocket, "ERR", 3, 0);
 		delete[] buffer;
 		return;
 	}
-	
+	std::ostringstream result;
+	for (unsigned int i = 0; i < 20; i++)
+	{
+		result << std::hex << std::setfill('0') << std::setw(2);
+		result << ((byte)buffer[i] & 0xff);
+	}
+	std::string clientSha = result.str();
 
+	/*
 	const char* serverBytes = serverSHA.c_str();
 	bool equal = true;
 	for (int i = 0; i < ricevuti; i++) {
@@ -205,11 +204,18 @@ void ConnectionHandler::uploadFile() {
 			break;
 		}
 	}
+	*/
 
-	if (equal)
+	if (serverSHA.compare(clientSha)!= 0) {
 		std::cout << "i due sono diversi!" << std::endl;
-	else
+		std::cout << serverSHA << "  ---  " << clientSha;
+		send(connectedSocket, "ERR", 3, 0);
+
+	}
+	else {
 		dbHandler->addChecksum(user, blob, serverSHA);
+		send(connectedSocket, "OK", 2, 0);
+	}
 	delete[] buffer;
 	// it is all ok
 }
@@ -657,7 +663,7 @@ void ConnectionHandler::getUserFolder() {
 		return;
 	}
 	try {
-		currentFolder = dbHandler->getUserFolder(user, folderPath);
+		currentFolder = dbHandler->getUserFolder(user, this->folderPath);
 		std::cout << "user folder is " << currentFolder << std::endl;
 		send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
 	}
