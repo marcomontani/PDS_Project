@@ -409,8 +409,8 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string* v = ((std::string**)data)[0];
 		std::string base = *((std::string**)data)[1];
-		std::string appendString =
-			"{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+		v->append(appendString);
 		return 0;
 	}, params, &error);
 
@@ -418,10 +418,20 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getDeletedFiles -> error while selecting deleted files");
 	}
+	if (result[result.size() - 1] == ',')
+		result[result.size() - 1] = ']';
+	else
+		result += ']';
 
-	result[result.size() - 1] = ']';
 
-	return result;
+
+	std::string ret = "";
+	for (int i = 0; i < result.size(); i++) {
+		if (result[i] != '\\') ret += result[i];
+		else ret += "\\\\";
+	}
+
+	return ret;
 }
 
 int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)

@@ -382,7 +382,12 @@ void ConnectionHandler::getDeletedFiles()
 {
 	if (!logged && user.size() == 0) return;
 	std::string deletedFiles = dbHandler->getDeletedFiles(user, folderPath);
+	int dimension = deletedFiles.size();
+	send(connectedSocket, (char*)&dimension , sizeof(int), 0);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
+
+	std::cout << std::endl << deletedFiles << std::endl;
+
 }
 
 void ConnectionHandler::downloadPreviousVersion()
