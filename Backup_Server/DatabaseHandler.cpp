@@ -266,6 +266,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
+		std::cout << error << std::endl;
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: createFileForUser-> no insert new blob");
@@ -308,6 +309,7 @@ void DatabaseHandler::addVersion(std::string username, std::string path, std::st
 	if (!existsFile(username, path, filename)) throw std::exception("the file does not exist");
 	char* error;
 	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + lastModified + "', " + std::to_string(blob) + " )";
+	std::cout << query << std::endl;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
