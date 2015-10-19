@@ -70,13 +70,12 @@ void ConnectionHandler::uploadFile() {
 
 	char* buffer = new char[1024];
 	memset(buffer, 0, 1024);
-	int ricevuti = recv(connectedSocket, (char*)buffer, 1024, 0);
+	int ricevuti = recv(connectedSocket, buffer, 1024, 0);
 	
 	// i really hope that the name of a file is < 1 KB!
 
 	if (ricevuti == 0) {
 		throw std::exception("client ended comunication");
-		return; // todo: or throw?? 
 	}
 
 	if (ricevuti >= 262) {
@@ -194,18 +193,7 @@ void ConnectionHandler::uploadFile() {
 		result << ((byte)buffer[i] & 0xff);
 	}
 	std::string clientSha = result.str();
-
-	/*
-	const char* serverBytes = serverSHA.c_str();
-	bool equal = true;
-	for (int i = 0; i < ricevuti; i++) {
-		if (serverBytes[i] != buffer[i]) {
-			equal = false;
-			break;
-		}
-	}
-	*/
-
+	
 	if (serverSHA.compare(clientSha)!= 0) {
 		std::cout << "i due sono diversi!" << std::endl;
 		std::cout << serverSHA << "  ---  " << clientSha;
@@ -274,41 +262,49 @@ void ConnectionHandler::deleteFile()
 {
 	if (!logged) return;
 	char* buffer = new char[1024];
-	int offset = 0, ricevuti = 0;
+	memset(buffer, 0, 1024);
+	int ricevuti = 0;
 	bool messageFinished = false;
-	// we need to establish an end. for now it will be \r\n
-
-	while (!messageFinished) {
-		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
-		if (ricevuti == 0) {
-			delete[] buffer;
-			return; // todo: maybe create disconnectedException
-		}
-		if (ricevuti + offset == 1024) {
-			delete[] buffer;
-			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
-		}
-
-		// did i read it all?
-		for (int i = 0; i < offset + ricevuti; i++) {
-			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-				buffer[i] = '\0';
-				messageFinished = true;
-			}
-		}
-
-		offset += ricevuti;
+	try {
+		std::string appo = receiveString(256).c_str();
+		memcpy(buffer, appo.c_str(), appo.size());
+		ricevuti = appo.size();
+	}
+	catch (std::exception) {
+		throw; // the client has closed the connection
+	}
+	if (ricevuti == 0) {
+		std::cout << "the user sent me a wrong string!" << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+		return;
 	}
 
 	// now i need to split the 2 strings
-	int i = offset - 1; // last char
-	while (buffer[i] != '/') i--;
-	std::string filename(buffer + i);
-	buffer[i + 1] = '\0';
+	int i = ricevuti- 1; // last char
+	std::string filename = "";
+	while (buffer[i] != '\\') {
+		filename.insert(0, 1, buffer[i]);
+		i--;
+	}
+	buffer[i] = '\0';
 	std::string path(buffer);
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
 
+	path = path.erase(0, folderPath.size());
+	std::cout << "new path : " << path << std::endl;
 	// todo: check this out!!
-	dbHandler->deleteFile(user, path, filename);
+	try {
+		dbHandler->deleteFile(user, path, filename);
+	}
+	catch (std::exception e) {
+		std::cout << "Errore in dbHandler->deleteFile " << e.what() << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+	}
+	send(connectedSocket, "OK", 2, 0);
 
 	delete[] buffer;
 }
@@ -354,6 +350,7 @@ void ConnectionHandler::getFileVersions()
 
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
 	{
+		std::cout << "could not find the basepath in the path sent by the user";
 		send(connectedSocket, "ERR", 3, 0);
 		return;
 	}
@@ -375,15 +372,19 @@ void ConnectionHandler::getDeletedFiles()
 {
 	if (!logged && user.size() == 0) return;
 	std::string deletedFiles = dbHandler->getDeletedFiles(user, folderPath);
+	int dimension = deletedFiles.size();
+	send(connectedSocket, (char*)&dimension , sizeof(int), 0);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
+
+	std::cout << std::endl << deletedFiles << std::endl;
+
 }
 
 void ConnectionHandler::downloadPreviousVersion()
 {
-	if (!logged || user.empty()) return;
+	if (!logged && user.empty()) return;
 	char* buffer = new char[1024];
 	int offset = 0, ricevuti = 0;
-	bool messageFinished = false;
 	
 	int pathLen, version_len;
 	std::string path = "";
@@ -396,6 +397,9 @@ void ConnectionHandler::downloadPreviousVersion()
 		send(connectedSocket, "ERR", 2, 0);
 		return;
 	}
+	else
+		std::cout << "pathlen = " << std::to_string(pathLen) << std::endl; // todo: maybe send ok
+
 	while (letti < pathLen) {
 		ricevuti = recv(connectedSocket, buffer + letti, pathLen-letti, 0);
 		letti += ricevuti;
@@ -403,40 +407,55 @@ void ConnectionHandler::downloadPreviousVersion()
 	buffer[pathLen] = '\0';
 	path.append(buffer);
 	// now i have the complete path
+	std::cout << "path = " << path << std::endl;
+	std::cout << "folderpath " << folderPath << std::endl;
 
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
 	{
+		std::cout << "Impossible to find folderPath into path" << std::endl;
 		send(connectedSocket, "ERR", 3, 0);
 		return;
 	}
 
 	path = path.erase(0, folderPath.size());
+
+
+	std::cout << "after erase " << path << std::endl;
+
 	send(connectedSocket, "OK", 2, 0);
 
 
 	recv(connectedSocket, (char*)&version_len, sizeof(int), 0);
 	letti = 0;
 	if (version_len < 0 || version_len >= 1024) {
-		send(connectedSocket, "ERR", 2, 0);
+		send(connectedSocket, "ERR", 3, 0);
 		return;
 	}
+	else
+		std::cout << "version length = " << std::to_string(version_len) << std::endl;
 	while (letti < version_len) {
 		ricevuti = recv(connectedSocket, buffer + letti, version_len - letti, 0);
 		letti += ricevuti;
 	}
 	buffer[version_len] = '\0';
 	date.append(buffer);	
+	std::cout << "received last version date : " << date << std::endl;
 	send(connectedSocket, "OK", 2, 0);
 	// now i have the version
 
 	// now i need to separate the filename from the path
-	int i = pathLen-1;
+	int i = path.length() - 1;
+
+	std::cout << "path = " << path << std::endl;
+	
+
 	while (path[i] != '\\') {
 		filename.insert(filename.begin(), path[i]);
 		i--;
 	}
+	
+	std::cout << "filename : " << filename << std::endl;
 	path = path.erase(i, std::string::npos);
-
 	std::cout << "path : " << path << std::endl << "filename : " << filename << std::endl << "version : " << date << std::endl;
 
 
@@ -464,7 +483,7 @@ void ConnectionHandler::downloadPreviousVersion()
 			reader.read(buffer, 1024);
 			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
 		}
-
+		reader.close();
 
 		recv(connectedSocket, buffer, 5, 0);
 
@@ -473,23 +492,43 @@ void ConnectionHandler::downloadPreviousVersion()
 		
 		EncryptionHandler eHandler;
 		std::string checksum = eHandler.from_file(readPath); // todo: maybe best to read it from db??
+		
 		send(connectedSocket, checksum.c_str(), checksum.length(), 0);
 
-		recv(connectedSocket, buffer, 5, 0);
 
-		if (strncmp(buffer, "OK", 2) != 0) // did not receive ok
+		ricevuti = recv(connectedSocket, buffer, 5, 0);
+		if (strncmp(buffer, "OK", 2) != 0)
+		{
+			std::cout << "probably checksums were not ok" << std:: endl;
 			return;
 
-		delete[] buffer;
-		reader.close();
+		}
 
 		try {
-			dbHandler->addVersion(user, path, filename, date, blob);
+			
+			time_t t = time(0);
+			struct tm now;
+			std::string timestamp;
+			if (EINVAL == localtime_s(&now, &t)) {
+				std::cout << "could not fill tm struct" << std::endl;
+				send(connectedSocket, "ERR", 3, 0);
+				return;
+			}
+			timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+			if (now.tm_hour < 10) timestamp += '0';
+			timestamp += std::to_string(now.tm_hour) + ":";
+			if (now.tm_min < 10) timestamp += '0';
+			timestamp += std::to_string(now.tm_min);
+
+			dbHandler->addVersion(user, path, filename, timestamp, blob);
+			// if i am here all was ok and the version was created
+			send(connectedSocket, "OK", 2, 0);
 		}
 		catch (std::exception) {
 			send(connectedSocket, "ERR", 3, 0);
+			delete[] buffer;
 		}
-		send(connectedSocket, "OK", 2, 0);
+		delete[] buffer;
 	}
 	catch (std::exception e) {
 		std::cout << e.what();
@@ -527,7 +566,6 @@ void ConnectionHandler::operator()()
 void ConnectionHandler::logIn() {
 	
 	// todo: check this
-	// i assume it will arrive "username password"
 
 	std::string username = "";
 	std::string password = "";
@@ -536,15 +574,22 @@ void ConnectionHandler::logIn() {
 	memset(buffer, 0, 50);
 
 	int ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti > 20)return;
+	if (ricevuti > 20) 
+	{ 
+		send(connectedSocket, "ERR", 3, 0);
+		return; 
+	}
 	if (ricevuti == 0) throw std::exception("user disconnected");
 	buffer[ricevuti] = '\0';
 	username.append(buffer);
 
-	send(connectedSocket, "OK", 3, 0);
+	send(connectedSocket, "OK", 2, 0);
 
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
-	if (ricevuti > 32)return;
+	if (ricevuti > 32) {
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
 	if (ricevuti == 0) throw std::exception("user disconnected");
 	buffer[ricevuti] = '\0';
 	password.append(buffer);
@@ -696,4 +741,30 @@ void ConnectionHandler::senderror() {
 	*num = -1;
 	send(connectedSocket, (char*)num, 4, 0);
 	delete num;
+}
+
+// todo: check is this is really useful
+std::string ConnectionHandler::receiveString(unsigned int max) {
+	char* buffer = new char[1024];
+	memset(buffer, 0, 1024);
+	int ricevuti = recv(connectedSocket, buffer, 1024, 0);
+
+	// i really hope that the name of a file is < 1 KB!
+
+	if (ricevuti == 0) {
+		throw std::exception("client ended comunication");
+	}
+
+	if (max != 0) {
+		if (ricevuti >= 262) {
+			std::cout << "Errore! Nome troppo lungo";
+			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
+			delete[] buffer;
+			return ""; // todo: or throw an exception?
+		}
+	}
+
+	std::string appo(buffer);
+	delete[] buffer;
+	return appo;
 }

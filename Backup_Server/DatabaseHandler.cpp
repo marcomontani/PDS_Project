@@ -266,6 +266,7 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
+		std::cout << error << std::endl;
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: createFileForUser-> no insert new blob");
@@ -283,7 +284,16 @@ void DatabaseHandler::deleteFile(std::string username, std::string path, std::st
 	
 	
 	time_t t = time(0); 
-	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + std::to_string(t) + "', NULL )";
+	std::string timestamp = "";
+	struct tm now;
+	if (EINVAL == localtime_s(&now, &t))
+		std::cout << "could not fill tm struct" << std::endl;
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
+	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" +timestamp + "', NULL )";
 
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
@@ -299,6 +309,7 @@ void DatabaseHandler::addVersion(std::string username, std::string path, std::st
 	if (!existsFile(username, path, filename)) throw std::exception("the file does not exist");
 	char* error;
 	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + lastModified + "', " + std::to_string(blob) + " )";
+	std::cout << query << std::endl;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
@@ -400,8 +411,8 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string* v = ((std::string**)data)[0];
 		std::string base = *((std::string**)data)[1];
-		std::string appendString =
-			"{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+		v->append(appendString);
 		return 0;
 	}, params, &error);
 
@@ -409,10 +420,20 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getDeletedFiles -> error while selecting deleted files");
 	}
+	if (result[result.size() - 1] == ',')
+		result[result.size() - 1] = ']';
+	else
+		result += ']';
 
-	result[result.size() - 1] = ']';
 
-	return result;
+
+	std::string ret = "";
+	for (int i = 0; i < result.size(); i++) {
+		if (result[i] != '\\') ret += result[i];
+		else ret += "\\\\";
+	}
+
+	return ret;
 }
 
 int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)
@@ -476,7 +497,3 @@ std::string DatabaseHandler::getPath(std::string username)
 		throw std::exception("username does not exist");
 	return path;
 }
-
-
-
-
