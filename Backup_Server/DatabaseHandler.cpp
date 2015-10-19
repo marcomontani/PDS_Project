@@ -497,3 +497,26 @@ std::string DatabaseHandler::getPath(std::string username)
 		throw std::exception("username does not exist");
 	return path;
 }
+
+int DatabaseHandler::getLastBlob(std::string username, std::string path, std::string filename) {
+	char* error;
+	int blob = -1;
+	std::string query = "SELECT Blob FROM VERSIONS WHERE username='" + username + "' AND path='"+path+"' AND name='"+filename+"' AND Blob IS NOT NULL AND lastModified = (\
+		SELECT MAX(lastModified) FROM VERSIONS WHERE username='" + username + "' AND path='" + path + "' AND name='" + filename + "' and Blob is not null)";
+
+	OutputDebugStringA(query.c_str());
+
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		*(int*)data = strtol(argv[0], nullptr, 10);
+		std::cout << azColName[0] << ": " << argv[0];
+		return 0;
+	}, &blob, &error);
+
+	if (error != nullptr) {
+		std::cout << error << std::endl;
+		sqlite3_free(error);
+		throw std::exception("DbHandler::getPath-> error while searchng for path");
+	}
+	std::cout << "blob = " << std::to_string(blob) << std::endl;
+	return blob;
+}

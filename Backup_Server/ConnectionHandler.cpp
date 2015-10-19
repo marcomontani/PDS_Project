@@ -32,6 +32,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
 	functions[9] = &ConnectionHandler::getUserPath;
+	functions[10] = &ConnectionHandler::downloadLastVersion;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -50,7 +51,7 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 9 || op < 0) {
+	if (op > 10 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	else ((*this).*(functions[op]))();
@@ -501,7 +502,6 @@ void ConnectionHandler::downloadPreviousVersion()
 		{
 			std::cout << "probably checksums were not ok" << std:: endl;
 			return;
-
 		}
 
 		try {
@@ -528,6 +528,106 @@ void ConnectionHandler::downloadPreviousVersion()
 			send(connectedSocket, "ERR", 3, 0);
 			delete[] buffer;
 		}
+		delete[] buffer;
+	}
+	catch (std::exception e) {
+		std::cout << e.what();
+		return;
+	}
+}
+
+void ConnectionHandler::downloadLastVersion() {
+	if (!logged && user.empty()) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+
+	int pathLen, version_len;
+	std::string path = "";
+	std::string filename = "";
+
+	recv(connectedSocket, (char*)&pathLen, sizeof(int), 0);
+	int letti = 0;
+	if (pathLen <= 0 || pathLen >= 1024) {
+		send(connectedSocket, "ERR", 2, 0);
+		return;
+	}
+	else
+		std::cout << "pathlen = " << std::to_string(pathLen) << std::endl; // todo: maybe send ok
+
+	while (letti < pathLen) {
+		ricevuti = recv(connectedSocket, buffer + letti, pathLen - letti, 0);
+		letti += ricevuti;
+	}
+	buffer[pathLen] = '\0';
+	path.append(buffer);
+	// now i have the complete path
+
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		std::cout << "Impossible to find folderPath into path" << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
+	path = path.erase(0, folderPath.size());
+	send(connectedSocket, "OK", 2, 0);
+
+	// now i need to separate the filename from the path
+	int i = path.length() - 1;
+	while (path[i] != '\\') {
+		filename.insert(filename.begin(), path[i]);
+		i--;
+	}
+	path = path.erase(i, std::string::npos);
+
+	try {
+		int blob = dbHandler->getLastBlob(user, path, filename);
+
+		if (blob < 0) {
+			std::cout << "did not find lastBlob";
+			senderror();
+			return;
+		}
+		else
+			std::cout << "last blob is " << std::to_string(blob);
+
+
+		// now the standard send of a file
+		std::string readPath("C:\\ProgramData\\PoliHub\\");
+		readPath += (user + "\\" + std::to_string(blob));
+
+		struct stat s;
+		stat(readPath.c_str(), &s);
+		int fdim = s.st_size;
+		std::cout << "the file has " << std::to_string(fdim) << std::endl;
+		send(connectedSocket, (char*)&fdim, sizeof(int), 0);
+
+		std::ifstream reader(readPath, std::ios::binary);
+		char *buffer = new char[1024];
+		while (!reader.eof()) {
+			reader.read(buffer, 1024);
+			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
+		}
+		reader.close();
+
+		recv(connectedSocket, buffer, 5, 0);
+
+		if (strncmp(buffer, "OK", 2) != 0) // did not receive ok
+			return;
+
+		EncryptionHandler eHandler;
+		std::string checksum = eHandler.from_file(readPath); // todo: maybe best to read it from db??
+
+		send(connectedSocket, checksum.c_str(), checksum.length(), 0);
+
+
+		ricevuti = recv(connectedSocket, buffer, 5, 0);
+		if (strncmp(buffer, "OK", 2) != 0)
+		{
+			std::cout << "probably checksums were not ok" << std::endl;
+			return;
+		}
+		send(connectedSocket, "OK", 2, 0);
+		
 		delete[] buffer;
 	}
 	catch (std::exception e) {
