@@ -506,21 +506,8 @@ void ConnectionHandler::downloadPreviousVersion()
 
 		try {
 			
-			time_t t = time(0);
-			struct tm now;
-			std::string timestamp;
-			if (EINVAL == localtime_s(&now, &t)) {
-				std::cout << "could not fill tm struct" << std::endl;
-				send(connectedSocket, "ERR", 3, 0);
-				return;
-			}
-			timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
-			if (now.tm_hour < 10) timestamp += '0';
-			timestamp += std::to_string(now.tm_hour) + ":";
-			if (now.tm_min < 10) timestamp += '0';
-			timestamp += std::to_string(now.tm_min);
-
-			dbHandler->addVersion(user, path, filename, timestamp, blob);
+			
+			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
 			// if i am here all was ok and the version was created
 			send(connectedSocket, "OK", 2, 0);
 		}
@@ -626,12 +613,48 @@ void ConnectionHandler::downloadLastVersion() {
 			std::cout << "probably checksums were not ok" << std::endl;
 			return;
 		}
-		send(connectedSocket, "OK", 2, 0);
+
+
+		std::string lastVersion = dbHandler->getLastVersion(user, path, filename);
+		if (lastVersion.empty()) {
+			// impossible -> i already got a blob for that file. there must be a version of it
+			send(connectedSocket, "ERR", 3, 0); // just in case
+			return;
+		}
+		else
+			std::cout << "lastVersion = " << lastVersion << std::endl;
+
+		std::string blobVersion = dbHandler->getBlobVersion(user, blob);
+		if (blobVersion.empty()) {
+			// impossible -> i already got a blob for that file. there must be a version of it
+			send(connectedSocket, "ERR", 3, 0); // just in case
+			return;
+		}
+		else
+			std::cout << "blobVersion = " << blobVersion << std::endl;
+
+		std::cout << "last blob is " << std::to_string(blob) << std::endl;
+
+		if(blobVersion.compare(lastVersion) == 0) send(connectedSocket, "OK", 2, 0); // it's ok, i am not restoring a file for the user
+		else {
+			// i need to create a new version of that file
+			std::cout << "dbHandler->addVersion(" << user << ", " << path << ", " << filename << ", " << this->getCurrentTime() << ", ";
+			std::cout << std::to_string(blob) << std::endl;
+			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
+			// if i am here all was ok and the version was created
+			// if there was an exception in the creation of current time, an exception is thrown and caught by che catch statement below, which sends ERR to the user
+			send(connectedSocket, "OK", 2, 0);
+			std::cout << "sent ok" << std::endl;
+		}
 		
+		std::cout << "wanna delete buffer" << std::endl;
 		delete[] buffer;
+		std::cout << "buffer deleted" << std::endl;
+
 	}
 	catch (std::exception e) {
 		std::cout << e.what();
+		send(connectedSocket, "ERR", 3, 0); // to avoid the client to wait for me till the end of the days
 		return;
 	}
 }
@@ -867,4 +890,22 @@ std::string ConnectionHandler::receiveString(unsigned int max) {
 	std::string appo(buffer);
 	delete[] buffer;
 	return appo;
+}
+
+
+std::string ConnectionHandler::getCurrentTime() {
+	std::cout << "into getCurrentTime()" << std::endl;
+	time_t t = time(0);
+	struct tm now;
+	std::string timestamp;
+	if (EINVAL == localtime_s(&now, &t)) {
+		throw std::exception("could not fill tm struct");
+		return "";
+	}
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
+	return timestamp;
 }

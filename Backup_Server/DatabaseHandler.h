@@ -144,6 +144,10 @@ public:
 	void addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob);
 
 	int getLastBlob(std::string username, std::string path, std::string filename);
+
+	std::string getLastVersion(std::string username, std::string path, std::string filename);
+	
+	std::string getBlobVersion(std::string username, int blob);
 };
 
 

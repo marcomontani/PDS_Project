@@ -42,6 +42,7 @@ private:
 	// internal functions
 	void senderror();
 	std::string receiveString(unsigned int);
+	std::string getCurrentTime();
 	
 	
 };
