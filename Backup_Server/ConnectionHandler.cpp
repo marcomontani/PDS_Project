@@ -32,6 +32,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[7] = &ConnectionHandler::getDeletedFiles;
 	functions[8] = &ConnectionHandler::getUserFolder;
 	functions[9] = &ConnectionHandler::getUserPath;
+	functions[10] = &ConnectionHandler::downloadLastVersion;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -50,7 +51,7 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 9 || op < 0) {
+	if (op > 10 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	else ((*this).*(functions[op]))();
@@ -501,26 +502,12 @@ void ConnectionHandler::downloadPreviousVersion()
 		{
 			std::cout << "probably checksums were not ok" << std:: endl;
 			return;
-
 		}
 
 		try {
 			
-			time_t t = time(0);
-			struct tm now;
-			std::string timestamp;
-			if (EINVAL == localtime_s(&now, &t)) {
-				std::cout << "could not fill tm struct" << std::endl;
-				send(connectedSocket, "ERR", 3, 0);
-				return;
-			}
-			timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
-			if (now.tm_hour < 10) timestamp += '0';
-			timestamp += std::to_string(now.tm_hour) + ":";
-			if (now.tm_min < 10) timestamp += '0';
-			timestamp += std::to_string(now.tm_min);
-
-			dbHandler->addVersion(user, path, filename, timestamp, blob);
+			
+			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
 			// if i am here all was ok and the version was created
 			send(connectedSocket, "OK", 2, 0);
 		}
@@ -532,6 +519,142 @@ void ConnectionHandler::downloadPreviousVersion()
 	}
 	catch (std::exception e) {
 		std::cout << e.what();
+		return;
+	}
+}
+
+void ConnectionHandler::downloadLastVersion() {
+	if (!logged && user.empty()) return;
+	char* buffer = new char[1024];
+	int offset = 0, ricevuti = 0;
+
+	int pathLen, version_len;
+	std::string path = "";
+	std::string filename = "";
+
+	recv(connectedSocket, (char*)&pathLen, sizeof(int), 0);
+	int letti = 0;
+	if (pathLen <= 0 || pathLen >= 1024) {
+		send(connectedSocket, "ERR", 2, 0);
+		return;
+	}
+	else
+		std::cout << "pathlen = " << std::to_string(pathLen) << std::endl; // todo: maybe send ok
+
+	while (letti < pathLen) {
+		ricevuti = recv(connectedSocket, buffer + letti, pathLen - letti, 0);
+		letti += ricevuti;
+	}
+	buffer[pathLen] = '\0';
+	path.append(buffer);
+	// now i have the complete path
+
+	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
+	{
+		std::cout << "Impossible to find folderPath into path" << std::endl;
+		send(connectedSocket, "ERR", 3, 0);
+		return;
+	}
+	path = path.erase(0, folderPath.size());
+	send(connectedSocket, "OK", 2, 0);
+
+	// now i need to separate the filename from the path
+	int i = path.length() - 1;
+	while (path[i] != '\\') {
+		filename.insert(filename.begin(), path[i]);
+		i--;
+	}
+	path = path.erase(i, std::string::npos);
+
+	try {
+		int blob = dbHandler->getLastBlob(user, path, filename);
+
+		if (blob < 0) {
+			std::cout << "did not find lastBlob";
+			senderror();
+			return;
+		}
+		else
+			std::cout << "last blob is " << std::to_string(blob);
+
+
+		// now the standard send of a file
+		std::string readPath("C:\\ProgramData\\PoliHub\\");
+		readPath += (user + "\\" + std::to_string(blob));
+
+		struct stat s;
+		stat(readPath.c_str(), &s);
+		int fdim = s.st_size;
+		std::cout << "the file has " << std::to_string(fdim) << std::endl;
+		send(connectedSocket, (char*)&fdim, sizeof(int), 0);
+
+		std::ifstream reader(readPath, std::ios::binary);
+		char *buffer = new char[1024];
+		while (!reader.eof()) {
+			reader.read(buffer, 1024);
+			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
+		}
+		reader.close();
+
+		recv(connectedSocket, buffer, 5, 0);
+
+		if (strncmp(buffer, "OK", 2) != 0) // did not receive ok
+			return;
+
+		EncryptionHandler eHandler;
+		std::string checksum = eHandler.from_file(readPath); // todo: maybe best to read it from db??
+
+		send(connectedSocket, checksum.c_str(), checksum.length(), 0);
+
+
+		ricevuti = recv(connectedSocket, buffer, 5, 0);
+		if (strncmp(buffer, "OK", 2) != 0)
+		{
+			std::cout << "probably checksums were not ok" << std::endl;
+			return;
+		}
+
+
+		std::string lastVersion = dbHandler->getLastVersion(user, path, filename);
+		if (lastVersion.empty()) {
+			// impossible -> i already got a blob for that file. there must be a version of it
+			send(connectedSocket, "ERR", 3, 0); // just in case
+			return;
+		}
+		else
+			std::cout << "lastVersion = " << lastVersion << std::endl;
+
+		std::string blobVersion = dbHandler->getBlobVersion(user, blob);
+		if (blobVersion.empty()) {
+			// impossible -> i already got a blob for that file. there must be a version of it
+			send(connectedSocket, "ERR", 3, 0); // just in case
+			return;
+		}
+		else
+			std::cout << "blobVersion = " << blobVersion << std::endl;
+
+		std::cout << "last blob is " << std::to_string(blob) << std::endl;
+
+		if(blobVersion.compare(lastVersion) == 0) send(connectedSocket, "OK", 2, 0); // it's ok, i am not restoring a file for the user
+		else {
+			// i need to create a new version of that file
+			std::cout << "dbHandler->addVersion(" << user << ", " << path << ", " << filename << ", " << this->getCurrentTime() << ", ";
+			std::cout << std::to_string(blob) << std::endl;
+			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
+			// if i am here all was ok and the version was created
+			// if there was an exception in the creation of current time, an exception is thrown and caught by che catch statement below, which sends ERR to the user
+			send(connectedSocket, "OK", 2, 0);
+			std::cout << "sent ok" << std::endl;
+		}
+		
+		std::cout << "wanna delete buffer" << std::endl;
+		delete[] buffer;
+		std::cout << "buffer deleted" << std::endl;
+
+	}
+	catch (std::exception e) {
+		std::cout << e.what();
+		send(connectedSocket, "ERR", 3, 0); // to avoid the client to wait for me till the end of the days
 		return;
 	}
 }
@@ -767,4 +890,22 @@ std::string ConnectionHandler::receiveString(unsigned int max) {
 	std::string appo(buffer);
 	delete[] buffer;
 	return appo;
+}
+
+
+std::string ConnectionHandler::getCurrentTime() {
+	std::cout << "into getCurrentTime()" << std::endl;
+	time_t t = time(0);
+	struct tm now;
+	std::string timestamp;
+	if (EINVAL == localtime_s(&now, &t)) {
+		throw std::exception("could not fill tm struct");
+		return "";
+	}
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min);
+	return timestamp;
 }

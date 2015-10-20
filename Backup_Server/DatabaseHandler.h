@@ -142,6 +142,12 @@ public:
 	This function add a new version for a file. it is used when i want to add a new file but i alrady have the blob where that version is saved
 	*/
 	void addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob);
+
+	int getLastBlob(std::string username, std::string path, std::string filename);
+
+	std::string getLastVersion(std::string username, std::string path, std::string filename);
+	
+	std::string getBlobVersion(std::string username, int blob);
 };
 
 
