@@ -73,7 +73,7 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 // this function return something like [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
 std::string DatabaseHandler::getUserFolder(std::string username, std::string basePath) // todo: add baseDirectory
 {
-	std::string query = "SELECT name, path FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
+	std::string query = "SELECT name, path, checksum FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
 							SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
 	
 	std::string jsonFolder = "[";
@@ -84,10 +84,9 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 
 	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
-
 		std::string *folder = ((std::string**)data)[0];
 		std::string bPath = *((std::string**)data)[1];
-		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + bPath + std::string(argv[1]) + "\" },";
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\":\"" + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + bPath + std::string(argv[1]) + "\", \"" + std::string(azColName[2]) +"\" :\""+ std::string(argv[2]) +"\"},";
 		folder->append(appendString);
 		return 0;
 	}, params, &error);

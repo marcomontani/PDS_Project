@@ -343,11 +343,14 @@ void ConnectionHandler::getFileVersions()
 
 	// now i need to split the 2 strings
 	int i = dimension - 1; // last char
-	while (buffer[i] != '\\' && i > 0) i--;
-
 	std::string path = "", filename = "";
+	while (buffer[i] != '\\' && i > 0) {
+		filename = filename.insert(0, 1, buffer[i]);
+		i--;
+	}
+
 	for (int j = 0; j < i; j++) path += buffer[j];
-	for (i = i + 1; i < offset; i++) filename += buffer[i];
+	
 
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
 	{
@@ -508,6 +511,7 @@ void ConnectionHandler::downloadPreviousVersion()
 			
 			
 			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
+			dbHandler->addChecksum(user, blob, checksum);
 			// if i am here all was ok and the version was created
 			send(connectedSocket, "OK", 2, 0);
 		}
@@ -638,9 +642,8 @@ void ConnectionHandler::downloadLastVersion() {
 		if(blobVersion.compare(lastVersion) == 0) send(connectedSocket, "OK", 2, 0); // it's ok, i am not restoring a file for the user
 		else {
 			// i need to create a new version of that file
-			std::cout << "dbHandler->addVersion(" << user << ", " << path << ", " << filename << ", " << this->getCurrentTime() << ", ";
-			std::cout << std::to_string(blob) << std::endl;
 			dbHandler->addVersion(user, path, filename, this->getCurrentTime(), blob);
+			dbHandler->addChecksum(user, blob, checksum);
 			// if i am here all was ok and the version was created
 			// if there was an exception in the creation of current time, an exception is thrown and caught by che catch statement below, which sends ERR to the user
 			send(connectedSocket, "OK", 2, 0);
@@ -706,6 +709,8 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	username.append(buffer);
 
+	std::cout << "username = " << username;
+
 	send(connectedSocket, "OK", 2, 0);
 
 	ricevuti = recv(connectedSocket, buffer, 100, 0);
@@ -717,7 +722,7 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	password.append(buffer);
 	
-	
+	std::cout << "password = " << password;
 
 	// todo: check ricevuto != 0
 
@@ -738,7 +743,7 @@ void ConnectionHandler::logIn() {
 
 		// todo: modify this and read the folder of the user from the tcp stream
 		folderPath = dbHandler->getPath(user);
-
+		//send(connectedSocket, folderPath.c_str(), folderPath.size(), 0);
 
 	}
 	else {
