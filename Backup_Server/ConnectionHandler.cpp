@@ -33,6 +33,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[8] = &ConnectionHandler::getUserFolder;
 	functions[9] = &ConnectionHandler::getUserPath;
 	functions[10] = &ConnectionHandler::downloadLastVersion;
+	functions[11] = &ConnectionHandler::setUserPath;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -51,7 +52,7 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 10 || op < 0) {
+	if (op > 11 || op < 0) {
 		throw new std::out_of_range("The operation requested does not exist!");
 	}
 	else ((*this).*(functions[op]))();
@@ -741,9 +742,7 @@ void ConnectionHandler::logIn() {
 		logged = true;
 		send(connectedSocket, "OK", 3, 0);
 
-		// todo: modify this and read the folder of the user from the tcp stream
 		folderPath = dbHandler->getPath(user);
-		//send(connectedSocket, folderPath.c_str(), folderPath.size(), 0);
 
 	}
 	else {
@@ -913,4 +912,13 @@ std::string ConnectionHandler::getCurrentTime() {
 	if (now.tm_min < 10) timestamp += '0';
 	timestamp += std::to_string(now.tm_min);
 	return timestamp;
+}
+
+void ConnectionHandler::setUserPath() {
+	std::cout << "into setUserPath" << std::endl;
+	if (!logged && user.size() == 0) return;
+	std::string userPath = receiveString(0);
+	std::cout << "userPath received is " << userPath << std::endl;
+	if (userPath.size() != 0) folderPath = userPath;
+	// else the path is the default one that the user sent the time he connected. just in case.
 }
