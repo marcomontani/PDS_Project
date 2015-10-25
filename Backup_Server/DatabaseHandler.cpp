@@ -117,20 +117,27 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
 	
 	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
-	std::cout << "exist query : " << std::endl << query << std::endl;
 	OutputDebugStringA(query.c_str());
+	OutputDebugStringA("\n");
 
-	int number;
+	std::cout << "|filename| = " << std::to_string(fileName.length()) << std::endl;
+
+	int number = -1;
 	char* error;
+	
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
 	}, &number, &error);
 
-	if (error != nullptr) {		
+	if (error != nullptr) {
+		std::cout << error << std::endl;
 		sqlite3_free(error);
 		throw std::exception("existsFile has crashed!");
 	}
+	else
+		std::cout << "number = " << std::to_string(number);
+
 	return number == 1;
 }
 
@@ -169,7 +176,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	std::cout << "# of blob for " << username << " = " << numberOfBlobs << std::endl;
 
 	if (numberOfBlobs == 0) max = 0;
-	// TODO: create the file and create the new Blob should be in the same transaction. modify that
+	
 	else {
 		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
 		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
@@ -177,6 +184,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 			return 0;
 		}, &max, &error);
 		if (error != nullptr) {
+			std::cout << error << std::endl;
 			std::cout << "error in select max(blob) : " << error << std::endl;
 			sqlite3_free(error);
 			sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
@@ -312,8 +320,9 @@ void DatabaseHandler::addVersion(std::string username, std::string path, std::st
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
+		std::cout << error << std::endl;
 		sqlite3_free(error);
-		throw std::exception("DbHandler:: createFileForUser-> no insert new version");
+		throw std::exception("DbHandler:: addVersion-> no insert new version");
 	}
 }
 

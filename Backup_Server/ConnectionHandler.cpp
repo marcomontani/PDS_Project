@@ -53,7 +53,7 @@ ConnectionHandler::~ConnectionHandler()
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
 	if (op > 11 || op < 0) {
-		throw new std::out_of_range("The operation requested does not exist!");
+		throw std::out_of_range("The operation requested does not exist!");
 	}
 	else ((*this).*(functions[op]))();
 }
@@ -551,7 +551,7 @@ void ConnectionHandler::downloadLastVersion() {
 		letti += ricevuti;
 	}
 	buffer[pathLen] = '\0';
-	path.append(buffer);
+	path.append(buffer, pathLen);
 	// now i have the complete path
 
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
@@ -686,6 +686,23 @@ void ConnectionHandler::operator()()
 		catch (std::exception) { // todo: modify into userloggeoutexception
 			std::cout << "user logged out" << std::endl;
 			return;
+		}
+		catch (std::out_of_range) {
+			char* buffer = new char[1024];
+			int ricevuti;
+			do {
+				FD_SET rcv;
+				FD_ZERO(&recv);
+				FD_SET(connectedSocket, &recv);
+				struct timeval t;
+				t.tv_usec = 1;
+				t.tv_sec = 0;
+				if (select(0, &rcv, nullptr, nullptr, &t) == 0) // there is nothing to read
+					break;
+				else
+					ricevuti = recv(connectedSocket, buffer, 1024, 0);
+			} while (ricevuti == 1024);
+			delete[] buffer;
 		}
 	 } while (operation >= 0); // exit = [ operation -1 ]
 }
