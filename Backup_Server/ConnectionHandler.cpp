@@ -708,9 +708,6 @@ void ConnectionHandler::operator()()
 }
 
 void ConnectionHandler::logIn() {
-	
-	// todo: check this
-
 	std::string username = "";
 	std::string password = "";
 
@@ -927,7 +924,9 @@ std::string ConnectionHandler::getCurrentTime() {
 	if (now.tm_hour < 10) timestamp += '0';
 	timestamp += std::to_string(now.tm_hour) + ":";
 	if (now.tm_min < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_min);
+	timestamp += std::to_string(now.tm_min) + ":";
+	if (now.tm_sec < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_sec);
 	return timestamp;
 }
 
