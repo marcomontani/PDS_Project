@@ -211,55 +211,32 @@ void ConnectionHandler::uploadFile() {
 }
 
 
-// todo: modify how this function works
 void ConnectionHandler::removeFile()
 {
-	if (!logged) return;
-	char* buffer = new char[1024];
-	int offset = 0, ricevuti = 0;
-	bool messageFinished = false;
-	// we need to establish an end. for now it will be \r\n
+	if (!logged && user.size() == 0) return;
+	std::string buffer;
 	
-	while (!messageFinished) {
-		ricevuti = recv(connectedSocket, buffer + offset, 1024, 0);
-		if (ricevuti == 0) {
-			delete[] buffer;
-			return; // todo: maybe create disconnectedException
-		}
-		if (ricevuti + offset == 1024) {
-			delete[] buffer;
-			return; // todo: maybe create messageTooLongException. someone is trying to get a buffer overflow
-		}
-		
-		// did i read it all?
-		for (int i = 0; i < offset + ricevuti; i++) {
-			if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-				buffer[i] = '\0';
-				messageFinished = true;
-			}
-		}
-
-		offset += ricevuti;
-	}
+	buffer = receiveString(256);
 
 	// now i need to split the 2 strings
-	int i = offset - 1; // last char
-	while (buffer[i] != '/') i--;
-	std::string filename(buffer + i);
-	buffer[i + 1] = '\0';
+	int i = buffer.size() - 1; // last char
+	std::string filename = "";
+	while (buffer[i] != '\\') {
+		filename.insert(0, 1, buffer[i]);
+		i--;
+	}
+	buffer = buffer.erase(i + 1);
 	std::string path(buffer);
 	
-	// todo: check this out!!
-	dbHandler->removeFile(user, path, filename);
-
-	delete[] buffer;
+	try {
+		dbHandler->removeFile(user, buffer, filename);
+		send(connectedSocket, "OK", 2, 0);
+	}
+	catch (std::exception) {
+		send(connectedSocket, "ERR", 3, 0);
+	}
 }
 
-/*
-	WARNING: this function is really identical to removeFile. just it is called dbelper.removeFile instead of dbHelper.deleteFile.
-				make them call the same function with an additional parameter could be better
-*/
-// todo: modify how this function works
 void ConnectionHandler::deleteFile()
 {
 	if (!logged) return;
@@ -907,7 +884,7 @@ std::string ConnectionHandler::receiveString(unsigned int max) {
 	}
 
 	if (max != 0) {
-		if (ricevuti >= 262) {
+		if (ricevuti >= max) {
 			std::cout << "Errore! Nome troppo lungo";
 			send(connectedSocket, "ERR", 3, 0); // TODO: modify this with an enum
 			delete[] buffer;
