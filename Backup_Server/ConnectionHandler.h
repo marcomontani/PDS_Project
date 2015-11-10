@@ -19,7 +19,7 @@ public:
 private:
 	// variables
 	std::string folderPath;
-	void (ConnectionHandler::*functions [11] ) (void); // array of functions that can be requested by the user
+	void (ConnectionHandler::*functions [12] ) (void); // array of functions that can be requested by the user
 	SOCKET connectedSocket;
 	bool logged;
 	DatabaseHandler *dbHandler;
@@ -39,6 +39,7 @@ private:
 	void getUserFolder();
 	void getUserPath();
 	void downloadLastVersion();
+	void setUserPath();
 	// internal functions
 	void senderror();
 	std::string receiveString(unsigned int);

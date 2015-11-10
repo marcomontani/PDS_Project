@@ -33,6 +33,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[8] = &ConnectionHandler::getUserFolder;
 	functions[9] = &ConnectionHandler::getUserPath;
 	functions[10] = &ConnectionHandler::downloadLastVersion;
+	functions[11] = &ConnectionHandler::setUserPath;
 
 	connectedSocket = s;
 	dbHandler = new DatabaseHandler();
@@ -51,8 +52,8 @@ ConnectionHandler::~ConnectionHandler()
 */
 void ConnectionHandler::prerformReqestedOperation(int op) {
 	
-	if (op > 10 || op < 0) {
-		throw new std::out_of_range("The operation requested does not exist!");
+	if (op > 11 || op < 0) {
+		throw std::out_of_range("The operation requested does not exist!");
 	}
 	else ((*this).*(functions[op]))();
 }
@@ -527,7 +528,7 @@ void ConnectionHandler::downloadLastVersion() {
 		letti += ricevuti;
 	}
 	buffer[pathLen] = '\0';
-	path.append(buffer);
+	path.append(buffer, pathLen);
 	// now i have the complete path
 
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
@@ -663,13 +664,27 @@ void ConnectionHandler::operator()()
 			std::cout << "user logged out" << std::endl;
 			return;
 		}
+		catch (std::out_of_range) {
+			char* buffer = new char[1024];
+			int ricevuti;
+			do {
+				FD_SET rcv;
+				FD_ZERO(&recv);
+				FD_SET(connectedSocket, &recv);
+				struct timeval t;
+				t.tv_usec = 1;
+				t.tv_sec = 0;
+				if (select(0, &rcv, nullptr, nullptr, &t) == 0) // there is nothing to read
+					break;
+				else
+					ricevuti = recv(connectedSocket, buffer, 1024, 0);
+			} while (ricevuti == 1024);
+			delete[] buffer;
+		}
 	 } while (operation >= 0); // exit = [ operation -1 ]
 }
 
 void ConnectionHandler::logIn() {
-	
-	// todo: check this
-
 	std::string username = "";
 	std::string password = "";
 
@@ -718,9 +733,7 @@ void ConnectionHandler::logIn() {
 		logged = true;
 		send(connectedSocket, "OK", 3, 0);
 
-		// todo: modify this and read the folder of the user from the tcp stream
 		folderPath = dbHandler->getPath(user);
-		//send(connectedSocket, folderPath.c_str(), folderPath.size(), 0);
 
 	}
 	else {
@@ -888,6 +901,17 @@ std::string ConnectionHandler::getCurrentTime() {
 	if (now.tm_hour < 10) timestamp += '0';
 	timestamp += std::to_string(now.tm_hour) + ":";
 	if (now.tm_min < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_min);
+	timestamp += std::to_string(now.tm_min) + ":";
+	if (now.tm_sec < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_sec);
 	return timestamp;
+}
+
+void ConnectionHandler::setUserPath() {
+	std::cout << "into setUserPath" << std::endl;
+	if (!logged && user.size() == 0) return;
+	std::string userPath = receiveString(0);
+	std::cout << "userPath received is " << userPath << std::endl;
+	if (userPath.size() != 0) folderPath = userPath;
+	// else the path is the default one that the user sent the time he connected. just in case.
 }
