@@ -381,7 +381,11 @@ void ConnectionHandler::getDeletedFiles()
 	send(connectedSocket, (char*)&dimension , sizeof(int), 0);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
 
-	std::cout << std::endl << deletedFiles << std::endl;
+	#ifdef DEBUG
+		std::cout << std::endl << deletedFiles << std::endl;
+	#endif // DEBUG
+
+	
 
 }
 
@@ -724,7 +728,9 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	username.append(buffer);
 
-	std::cout << "username = " << username;
+	#ifdef DEBUG
+		std::cout << "username = " << username;
+	#endif // DEBUG
 
 	send(connectedSocket, "OK", 2, 0);
 
@@ -737,8 +743,9 @@ void ConnectionHandler::logIn() {
 	buffer[ricevuti] = '\0';
 	password.append(buffer);
 	
-	std::cout << "password = " << password;
-
+	#ifdef DEBUG
+		std::cout << "password = " << password;
+	#endif
 	// todo: check ricevuto != 0
 
 
@@ -850,7 +857,10 @@ void ConnectionHandler::getUserFolder() {
 	}
 	try {
 		currentFolder = dbHandler->getUserFolder(user, this->folderPath);
-		std::cout << "user folder is " << currentFolder << std::endl;
+		#ifdef DEBUG
+			std::cout << "user folder is " << currentFolder << std::endl;
+		#endif // DEBUG
+		
 		send(connectedSocket, currentFolder.c_str(), currentFolder.size(), 0);
 	}
 	catch (std::exception e) {
