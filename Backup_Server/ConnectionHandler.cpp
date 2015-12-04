@@ -15,7 +15,7 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 {
 	std::cout << "ConnectionHandler costruttore chiamato!" << std::endl;
 	if (s == INVALID_SOCKET) {
-		std::cout << "stai passando un invalid socket!";
+		std::cout << "stai passando un invalid socket!" << std::endl;
 		return;
 	}
 	logged = false;
@@ -36,14 +36,12 @@ ConnectionHandler::ConnectionHandler(const SOCKET& s)
 	functions[11] = &ConnectionHandler::setUserPath;
 
 	connectedSocket = s;
-	dbHandler = new DatabaseHandler();
+	dbHandler =  new DatabaseHandler();
 	
-
 }
 
 ConnectionHandler::~ConnectionHandler()
 {
-	delete dbHandler;
 	std::cout << "esce chandler" << std::endl;
 }
 
@@ -217,7 +215,6 @@ void ConnectionHandler::removeFile()
 	std::string buffer;
 	
 	buffer = receiveString(256);
-
 	// now i need to split the 2 strings
 	int i = buffer.size() - 1; // last char
 	std::string filename = "";
@@ -225,12 +222,23 @@ void ConnectionHandler::removeFile()
 		filename.insert(0, 1, buffer[i]);
 		i--;
 	}
-	buffer = buffer.erase(i + 1);
+	buffer = buffer.erase(i);
 	std::string path(buffer);
+
+	path = path.erase(0, folderPath.size());
 	
+#ifdef DEBUG
+	std::cout << "user = " << user << std::endl;
+	std::cout << "path = " << path << std::endl;
+	std::cout << "filename = " << filename << std::endl;
+#endif
+
 	try {
-		dbHandler->removeFile(user, buffer, filename);
+		dbHandler->removeFile(user, path, filename);
 		send(connectedSocket, "OK", 2, 0);
+#ifdef  DEBUG
+		std::cout << "sent OK" << std::endl;
+#endif //  DEBUG
 	}
 	catch (std::exception) {
 		send(connectedSocket, "ERR", 3, 0);
@@ -721,7 +729,7 @@ void ConnectionHandler::logIn() {
 	password.append(buffer);
 	
 	#ifdef DEBUG
-		std::cout << "password = " << password;
+		std::cout << "password = " << password << std::endl;
 	#endif
 	// todo: check ricevuto != 0
 
@@ -736,6 +744,11 @@ void ConnectionHandler::logIn() {
 
 	
 	if (dbHandler->logUser(username, password)) {
+
+#ifdef DEBUG
+		std::cout << "login was successful" << std::endl;
+#endif
+
 		user = username;
 		logged = true;
 		send(connectedSocket, "OK", 3, 0);

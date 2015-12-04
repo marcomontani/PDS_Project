@@ -27,5 +27,7 @@
 #include <iomanip>
 
 #define PORT 7000; 
+#define DEBUG
+
 
 // TODO: fare riferimento qui alle intestazioni aggiuntive richieste dal programma

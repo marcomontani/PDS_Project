@@ -2,12 +2,16 @@
 
 #include "DatabaseHandler.h"
 #include "sqlite3.h"
+#include "EncryptionHandler.h"
 #include <windows.data.json.h>
 
+
+std::mutex DatabaseHandler::m;
 
 DatabaseHandler::DatabaseHandler()
 {
 	std::cout << "dbHandler constructor!! " << std::endl;
+	
 	database = nullptr;
 	if (sqlite3_open("PDSProject.db", &database) != SQLITE_OK) {
 		std::wcout << L"could not open/create the db" << std::endl;
@@ -29,8 +33,13 @@ DatabaseHandler::~DatabaseHandler()
 	this function could throw std::exception. read the message to understand what happened
 */
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
-	
-	std::string query = "INSERT INTO USERS (username, password, folder) VALUES ('" + username + "', '" + password + "', '" + baseDir +"')";
+
+
+	std::string salt = this->getRandomString(50);
+	// todo: change all here
+	EncryptionHandler ea;
+	ea.update(password + salt);
+	std::string query = "INSERT INTO USERS (username, password, folder, salt) VALUES ('" + username + "', '" + ea.final() + "', '" + baseDir +"', '"+ salt +"')";
 	
 	char* error = NULL;
 	// todo : use precompiled queries or check for avoid SQL INJECTION
@@ -48,14 +57,30 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 	else
 		std::cout << "db handler : utente loggato correttamente" << std::endl;
 		
-		}
+}
 
 bool DatabaseHandler::logUser(std::string username, std::string password) {
 
-	std::string query = "SELECT password FROM USERS where username = '" + username + "'";
+	// i need to read the salt from the DB
+	std::string query = "SELECT salt FROM USERS where username = '" + username + "' and salt is not NULL";
+	std::string salt = "";
+	char* error;
+
+	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
+		if (argv[0] != nullptr) ((std::string *)data)->append(argv[0]);
+		return 0;
+	}, &salt, &error);
+
+	if (error != nullptr) throw std::exception("impossible to get password");
+
+	EncryptionHandler ea; 
+	ea.update(password + salt);
+
+
+	query = "SELECT password FROM USERS where username = '" + username + "'";
 	std::string pass = "password";
 	// todo : use precompiled queries or check for avoid SQL INJECTION
-	char* error;
+	
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		((std::string*)data)->assign(argv[0]);
 		return 0;
@@ -65,24 +90,26 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 		throw std::exception("impossible to get password");
 	}
 
-	// todo: calculate md5 (or sha1) on password
-	return pass == password; //  operator == has been redefined
+	return ea.final() == pass; //  operator == has been redefined
 	
 }
 
 // this function return something like [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
 std::string DatabaseHandler::getUserFolder(std::string username, std::string basePath) // todo: add baseDirectory
 {
+
+	
+
 	std::string query = "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
-							SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
+				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
 	
 	std::string jsonFolder = "[";
 
 	std::string* params[2];
 	params[0] = &jsonFolder;
 	params[1] = &basePath;
-
 	char* error;
+	
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string *folder = ((std::string**)data)[0];
 		std::string bPath = *((std::string**)data)[1];
@@ -150,18 +177,21 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 }
 
 int DatabaseHandler::createFileForUser(std::string username, std::string path, std::string fileName) {
-	
-	
+	std::lock_guard<std::mutex> lockguard(m);
+
 	if (this->existsFile(username, path, fileName)) throw std::exception("file already exists");
 	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+
 	std::string query = "INSERT INTO FILES (name, path, username) VALUES ('" + fileName + "', '" + path + "', '" + username + "')";
 	char* error;
-	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
+	if (sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error) == SQLITE_LOCKED)
+	{
+
+	}
 	if (error != nullptr) {
 		std::cout << "impossibile inserire in files! " << error << std::endl;
 		sqlite3_free(error);
 		throw std::exception("no insertion");
-
 	}
 
 	// now i need to create the blob; how many blobs can i count for that user?
@@ -233,6 +263,9 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	return max;
 }
 
+/* 
+	This function creates a new blob for a file. since it is only called from createFileForUser, it is wrong to try to get the mutex here
+*/
 int DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
 	if (! this->existsFile(username, path, fileName)) throw std::exception("file does not exist");
 
@@ -291,13 +324,14 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 		throw std::exception("DbHandler:: createFileForUser-> no insert new blob");
 	}
 
-	sqlite3_exec(database, "COMMIT TRANSACTION", nullptr, nullptr, nullptr);
+	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
 
 	return max;
 }
 
 void DatabaseHandler::deleteFile(std::string username, std::string path, std::string filename)
 {
+	std::lock_guard<std::mutex> lg(m);
 	if (!existsFile(username, path, filename)) throw std::exception("no file to delete");
 	if(isDeleted(username, path, filename)) throw std::exception("file already deleted");
 	
@@ -342,7 +376,13 @@ void DatabaseHandler::addVersion(std::string username, std::string path, std::st
 }
 
 void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename) {
-	if (!existsFile(username, path, filename)) throw std::exception("no file to delete");
+	std::lock_guard<std::mutex> lg(m);
+	if (!existsFile(username, path, filename)) { 
+#ifdef  DEBUG
+		std::cout << "error : file not found" <<std::endl;
+#endif //  DEBUG
+		throw std::exception("no file to delete"); 
+	}
 	// the file exist
 
 	char* error;
@@ -350,22 +390,42 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 
 	std::string query = "DELETE FROM VERSIONS WHERE username = '" + username + "' AND path = '" + path+"' AND name = '"+filename+"'";
 
+#ifdef DEBUG
+	OutputDebugStringA(query.c_str());
+	OutputDebugStringA("\n");
+#endif // DEBUG
+
+
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
+#ifdef  DEBUG
+		std::cout << "error : " << error << std::endl;
+#endif //  DEBUG
+
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: removeFile -> error while deleting from FILES");
 	}
 
-	query = "DELETE FROM FILE WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
+	query = "DELETE FROM FILES WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
+
+#ifdef DEBUG
+	OutputDebugStringA(query.c_str());
+	OutputDebugStringA("\n");
+#endif // DEBUG
+
+
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
+#ifdef  DEBUG
+		std::cout << "error : " << error << std::endl;
+#endif //  DEBUG
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: removeFile -> error while deleting from VERSIONS");
 	}
 
-	sqlite3_exec(database, "BEGIN COMMIT", nullptr, nullptr, nullptr);
+	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
 }
 
 std::string DatabaseHandler::getFileVersions(std::string username, std::string path, std::string filename)
@@ -409,6 +469,7 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 
 void DatabaseHandler::addChecksum(std::string username, int blob, std::string checksum)
 {
+	std::lock_guard<std::mutex> lg(m);
 	std::string query = "UPDATE VERSIONS SET checksum = '" + checksum + "' WHERE Blob = " + std::to_string(blob) + " AND username = '" + username + "'";
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
@@ -586,4 +647,30 @@ std::string DatabaseHandler::getBlobVersion(std::string username, int blob) {
 	}
 
 	return version;
+}
+
+std::string DatabaseHandler::getRandomString(int digitN) {
+	char digits[2 * 26 + 10];
+	char c = 'a';
+	int pos=0;
+	while (c <= 'z') digits[pos++] = c++;
+	c = 'A';
+	while (c <= 'Z') digits[pos++] = c++;
+	c = '0';
+	while (c <= '9') digits[pos++] = c++;
+
+	// the characters have been inizialized. now i'll build the string
+
+	std::string retStr;
+	for (int i = 0; i < digitN; i++) retStr.append(1, digits[rand() % (2 * 26 + 10)]);
+	return retStr;
+}
+
+std::string DatabaseHandler::secureParameter(std::string parameter) {
+	std::string retStr;
+	for (char c : parameter) {
+		if (c != '\'') retStr += c;
+		else retStr += "''";
+	}
+	return retStr;
 }

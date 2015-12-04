@@ -2,16 +2,19 @@
 #include <string>
 #include <sql.h>
 #include "sqlite3.h"
+#include <mutex>
 
 class DatabaseHandler
 {
 private:
 	sqlite3 *database;
+	static std::mutex m;
 
 public:
+
 	DatabaseHandler();
 	~DatabaseHandler();
-	
+
 	/*
 		function : logUser
 		@param : username
@@ -148,6 +151,19 @@ public:
 	std::string getLastVersion(std::string username, std::string path, std::string filename);
 	
 	std::string getBlobVersion(std::string username, int blob);
+
+	/*
+		@param : digitN
+		@return : a radom string, of the length asked by the parameter
+	*/
+	std::string getRandomString(int digitN);
+
+
+	/*
+		@param : patameter
+		@return : a new string where the character ' has been replaced with '', in order to avoid sql injection
+	*/
+	std::string secureParameter(std::string parameter);
 };
 
 
