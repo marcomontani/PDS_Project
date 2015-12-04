@@ -674,3 +674,81 @@ std::string DatabaseHandler::secureParameter(std::string parameter) {
 	}
 	return retStr;
 }
+
+
+/*
+	NOTE: there is no check about a possible duplicated cookie. 
+		  In that case an error will occur and it will be told "impossible to create the cookie, log with username and password also next time"
+*/
+std::string DatabaseHandler::updateCookie(std::string username)
+{
+	std::string cookie = getRandomString(100); 
+	time_t t = time(0);
+	t += 60  // seconds in a minute
+		* 60 // minutes in an hour
+		* 24; // hours a day
+
+	std::string query = "UPDATE USERS SET cookie = '?', cookieExpiration = ? WHERE username = '?'";
+	sqlite3_stmt* stmt;
+
+	if (sqlite3_prepare_v2(database, query.c_str(), query.size(), &stmt, nullptr) != SQLITE_OK) {
+		
+#ifdef DEBUG	
+		std::cout << "error while praparing the query to upate cookie";
+#endif
+		return nullptr;
+	}
+	// note: the count of parameters to be set starts from 1
+	// with SQLITE STATIC i say that the string does not need to be disposed, so it is oky it does not remove it
+	sqlite3_bind_text(stmt, 1, cookie.c_str(), cookie.size(), SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 2, std::to_string(t).c_str(), std::to_string(t).size(), SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 3, username.c_str(), username.size(), SQLITE_STATIC);
+
+
+	std::lock_guard<std::mutex> lg(m); // now it is time to crate the lock since the query is ready to be executed
+	
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		sqlite3_finalize(stmt);
+		return nullptr;
+	}
+	// if done, it means that it has updated out table. yeah!
+	return cookie;
+}
+
+std::string DatabaseHandler::getUserFromCookie(std::string cookie) {
+
+	std::string query = "SELECT username, cookieExpiration FROM USERS WHERE cookie = '?'";
+	sqlite3_stmt* stmt;
+	if (sqlite3_prepare_v2(database, query.c_str(), query.size(), &stmt, nullptr) != SQLITE_OK) {
+#ifdef DEBUG	
+		std::cout << "error while praparing the query to retrive username from cookie";
+#endif
+		return nullptr;
+	}
+
+	sqlite3_bind_text(stmt, 1, cookie.c_str(), cookie.size(), SQLITE_STATIC);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE) { // since cookie is UNIQUE, i can assume it's the last element. if present
+		sqlite3_finalize(stmt);
+		return nullptr;
+	}
+
+	std::string user;
+	std::string expires;
+
+	try {
+		user += (char*)sqlite3_column_text(stmt, 1);
+		expires += (char*)sqlite3_column_text(stmt, 2);
+	}
+	catch (...) { // i am here if user or expires is null. but dunno the exception
+		sqlite3_finalize(stmt);
+		return nullptr;
+	}
+
+	sqlite3_finalize(stmt);
+
+	if (std::to_string(time(0)).compare(expires) > 0)
+		return nullptr;
+	else
+		return user;	
+}

@@ -164,6 +164,23 @@ public:
 		@return : a new string where the character ' has been replaced with '', in order to avoid sql injection
 	*/
 	std::string secureParameter(std::string parameter);
+
+	/*
+		updates the cookie for a certain user, so he has not to send credentials all the times
+		The cookie is just a random string associated with an expiration date, to be exact 24 hours after the creation of the cookie
+		@param : username of the user
+		@return : the new cookie
+	*/
+	std::string updateCookie(std::string username);
+
+	/*
+		if it exists, it return the username associated with the passed cookie
+		@param : cookie
+
+
+	*/
+	std::string getUserFromCookie(std::string cookie);
+
 };
 
 
