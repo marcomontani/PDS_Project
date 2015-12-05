@@ -9,6 +9,18 @@ class DatabaseHandler
 private:
 	sqlite3 *database;
 	static std::mutex m;
+	sqlite3_stmt** statements;
+
+
+	/*
+		This function prepares a list of statements that can be called by other methods
+	*/
+	void prepareStatements();
+
+	/*
+		Returns the statement in the position requested by the client.
+	*/
+	sqlite3_stmt* getStatement(int number);
 
 public:
 
