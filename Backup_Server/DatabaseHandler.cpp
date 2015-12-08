@@ -5,7 +5,7 @@
 #include "EncryptionHandler.h"
 #include <windows.data.json.h>
 
-//#define PRECOMPILED
+#define PRECOMPILED
 
 std::mutex DatabaseHandler::m;
 
@@ -34,11 +34,10 @@ enum stmnt_positions {
 
 
 void DatabaseHandler::prepareStatements() {
-	std::string query = "INSERT INTO USERS (username, password, folder, salt) VALUES ('?', '?', '?', '?')";
+	std::string query = "INSERT INTO USERS (username, password, folder, salt) VALUES (?, ?, ?, ?)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[INSERT_USER], nullptr);
 
-	query = "SELECT salt FROM USERS where username = '?' and salt is not NULL";
-	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_SALT], nullptr);
+	sqlite3_prepare_v2(database, "SELECT salt FROM USERS WHERE username=? and salt is not NULL", -1, &statements[GET_SALT], nullptr);
 
 	query = "SELECT password FROM USERS where username = '?'";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_PASSWORD], nullptr);
@@ -107,8 +106,11 @@ void DatabaseHandler::prepareStatements() {
 }
 
 sqlite3_stmt* DatabaseHandler::getStatement(int number) {
+#ifdef DEBUG
+	std::cout << "requested statement " << number << std::endl;
+#endif
 	if (number < 0 || number > 18) return nullptr;
-	sqlite3_reset(statements[number]);
+	//sqlite3_reset(statements[number]);
 	return statements[number];
 }
 
@@ -123,6 +125,7 @@ DatabaseHandler::DatabaseHandler()
 		return;
 	}
 	statements = new sqlite3_stmt*[18];
+	prepareStatements();
 }
 
 
@@ -165,22 +168,23 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 	// "INSERT INTO USERS (username, password, folder, salt) VALUES ('" + username + "', '" + ea.final() + "', '" + baseDir + "', '" + salt + "')"
 	std::string pass = ea.final();
 
-	sqlite3_stmt* query = getStatement(INSERT_USER);
+	sqlite3_stmt* query = nullptr; 
+	sqlite3_prepare_v2(database, "INSERT INTO USERS (username, password, folder, salt) VALUES (?, ?, ?, ?)", -1, &query, nullptr);
 	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 2, pass.c_str(), pass.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 2, pass.c_str(), pass.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 2, baseDir.c_str(), baseDir.size(), SQLITE_STATIC);
 
-	if (sqlite3_step(query) != SQLITE_DONE) { // something went wrong
-		std::string msg("impossible to create the new user");
+	if (int rc =  sqlite3_step(query) != SQLITE_DONE) { // something went wrong
+		std::string msg("impossible to create the new user. errcode = ");
 #ifdef DEBUG
-		std::cout << msg << std::endl;
+		std::cout << msg << rc << std::endl;
 #endif // DEBUG
 		throw std::exception(msg.c_str());
 	}
 
 #ifdef DEBUG
-	std::cout << "db handler : utente loggato correttamente" << std::endl;
+	std::cout << "db handler : utente creato correttamente" << std::endl;
 #endif // DEBUG
 
 
@@ -193,10 +197,12 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 bool DatabaseHandler::logUser(std::string username, std::string password) {
 
 	// i need to read the salt from the DB
-	std::string query = "SELECT salt FROM USERS where username = '" + username + "' and salt is not NULL";
+	EncryptionHandler ea;
 	std::string salt = "";
-	char* error;
 
+#ifndef PRECOMPILED
+	std::string query = "SELECT salt FROM USERS where username = '" + username + "' and salt is not NULL";
+	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		if (argv[0] != nullptr) ((std::string *)data)->append(argv[0]);
 		return 0;
@@ -204,49 +210,85 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 
 	if (error != nullptr) throw std::exception("impossible to get password");
 
-	EncryptionHandler ea; 
 	ea.update(password + salt);
-
 
 	query = "SELECT password FROM USERS where username = '" + username + "'";
 	std::string pass = "password";
 	// todo : use precompiled queries or check for avoid SQL INJECTION
-	
+
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		((std::string*)data)->assign(argv[0]);
 		return 0;
-		}, &pass, &error);	
+	}, &pass, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
 		throw std::exception("impossible to get password");
 	}
 
 	return ea.final() == pass; //  operator == has been redefined
+
+#else
+	sqlite3_stmt* query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT salt FROM USERS WHERE username=? and salt is not NULL", -1, &query, nullptr);
+	
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+
+	int rc = sqlite3_step(query);
+	if (rc == SQLITE_ROW) {
+		char * text;
+		text = (char*)sqlite3_column_text(query, 0);
+		salt.append(text);
+	}
+	else
+		std::cout << "could not read salt. returned " << rc << std::endl;
+
+	sqlite3_finalize(query);
+	sqlite3_prepare_v2(database, "SELECT password FROM USERS where username =?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+
+	if (sqlite3_step(query) != SQLITE_ROW) {
+		sqlite3_finalize(query);
+		return false;
+	}
+	
+	ea.update(password + salt);
+
+	std::string pass;
+	pass += (char*) sqlite3_column_text(query, 0);
+
+	sqlite3_finalize(query);
+	return (pass.compare(ea.final()) == 0);
+#endif // !PRECOMPILED
+
+	
 }
 
 // this function return something like [{"name":"filename1", "path", "filepath1"}, {"name":"filename2", "path", "filepath2"}]
 std::string DatabaseHandler::getUserFolder(std::string username, std::string basePath) 
 {
+
+	std::string jsonFolder = "[";
+#ifndef PRECOMPILED
 	std::string query = "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
 				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
-	
-	std::string jsonFolder = "[";
+
+
 
 	std::string* params[2];
 	params[0] = &jsonFolder;
 	params[1] = &basePath;
 	char* error;
-	
+
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string *folder = ((std::string**)data)[0];
 		std::string bPath = *((std::string**)data)[1];
 		std::string appendString = "{";
 		for (int i = 0; i < argc; i++) {
-			if(strcmp(azColName[i], "path") != 0) appendString += ("\"" + std::string(azColName[i]) + "\":\"" + std::string(argv[i]) + "\",");
+			if (strcmp(azColName[i], "path") != 0) appendString += ("\"" + std::string(azColName[i]) + "\":\"" + std::string(argv[i]) + "\",");
 			else appendString += ("\"" + std::string(azColName[i]) + "\":\"" + bPath + std::string(argv[i]) + "\",");
 
 		}
-		if(argc > 0) appendString[appendString.size() - 1] = '}';		
+		if (argc > 0) appendString[appendString.size() - 1] = '}';
 		else appendString += "}";
 		appendString += ",";
 		folder->append(appendString);
@@ -260,14 +302,49 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 		throw std::exception("error while getting the filesystem for the user ");
 	}
 
-	if(jsonFolder[jsonFolder.size() - 1] == ',')
+	
+	
+#else
+
+	sqlite3_stmt* query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username =? AND Blob is not NULL AND lastModified = (\
+				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = ? AND name = V.name AND path = V.path)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, username.c_str(), username.size(), SQLITE_STATIC);
+	
+	while (sqlite3_step(query) == SQLITE_ROW) {
+		jsonFolder += '{';
+		for (int i = 0; i < 4; i++) {
+			if (std::string(sqlite3_column_name(query, i)).compare("path") != 0) {
+				jsonFolder = jsonFolder.append("\"").append(sqlite3_column_name(query, i)).append("\":");
+				// ho ottenuto {"name":
+				jsonFolder = jsonFolder.append("\"").append((char*)sqlite3_column_text(query, i)).append("\",");
+				// ora ho {"name":"value",
+			}
+			else
+			{
+				jsonFolder = jsonFolder.append("\"").append(sqlite3_column_name(query, i)).append("\":");
+				jsonFolder = jsonFolder.append("\"").append(basePath).append((char*)sqlite3_column_text(query, i)).append("\",");
+			}
+		}
+		if (jsonFolder[jsonFolder.size() - 1] == ',')
+			jsonFolder[jsonFolder.size() - 1] = '}';
+		else jsonFolder += '}';
+		jsonFolder += ',';
+	}
+
+	sqlite3_finalize(query);
+
+#endif // !PRECOMPILED
+
+	if (jsonFolder[jsonFolder.size() - 1] == ',')
 		jsonFolder[jsonFolder.size() - 1] = ']';
 	else
 		jsonFolder += ']';
 
 	std::string returnFolder = "";
 	for (int i = 0; i < jsonFolder.size(); i++) {
-		if(jsonFolder[i] != '\\')
+		if (jsonFolder[i] != '\\')
 			returnFolder += jsonFolder[i];
 		else
 			returnFolder += "\\\\";
@@ -275,6 +352,9 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 
 	return returnFolder;
 }
+
+
+//TODO: CONTINUA A CREARE QUERY PRECOMPILATE DA QUI. 
 
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
 	
