@@ -165,8 +165,8 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 	sqlite3_prepare_v2(database, "INSERT INTO USERS (username, password, folder, salt) VALUES (?, ?, ?, ?)", -1, &query, nullptr);
 	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 2, pass.c_str(), pass.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 2, pass.c_str(), pass.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 2, baseDir.c_str(), baseDir.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, pass.c_str(), pass.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 4, baseDir.c_str(), baseDir.size(), SQLITE_STATIC);
 
 	if (int rc =  sqlite3_step(query) != SQLITE_DONE) { // something went wrong
 		std::string msg("impossible to create the new user. errcode = ");
@@ -207,7 +207,6 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 
 	query = "SELECT password FROM USERS where username = '" + username + "'";
 	std::string pass = "password";
-	// todo : use precompiled queries or check for avoid SQL INJECTION
 
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		((std::string*)data)->assign(argv[0]);
@@ -264,8 +263,6 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 #ifndef PRECOMPILED
 	std::string query = "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username = '" + username + "' AND Blob is not NULL AND lastModified = (\
 				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '" + username + "' AND name = V.name AND path = V.path)";
-
-
 
 	std::string* params[2];
 	params[0] = &jsonFolder;
@@ -468,8 +465,8 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	sqlite3_stmt *query;
 	sqlite3_prepare_v2(database, "INSERT INTO FILES (name, path, username) VALUES (?, ?, ?)", -1, &query, nullptr);
 	sqlite3_bind_text(query, 1, fileName.c_str(), fileName.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 1, path.c_str(), path.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
 	if (sqlite3_step(query) != SQLITE_DONE) {
 		sqlite3_finalize(query);
 		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
@@ -946,8 +943,6 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 
 	return ret;
 }
-
-// TODO: continue from here
 
 int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)
 {
