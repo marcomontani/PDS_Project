@@ -39,70 +39,62 @@ void DatabaseHandler::prepareStatements() {
 
 	sqlite3_prepare_v2(database, "SELECT salt FROM USERS WHERE username=? and salt is not NULL", -1, &statements[GET_SALT], nullptr);
 
-	query = "SELECT password FROM USERS where username = '?'";
+	query = "SELECT password FROM USERS where username = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_PASSWORD], nullptr);
 
-	query = "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username = '?' AND Blob is not NULL AND lastModified = (\
-				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = '?' AND name = V.name AND path = V.path)";
+	query = "SELECT name, path, checksum, lastModified FROM VERSIONS V WHERE username = ? AND Blob is not NULL AND lastModified = (\
+				SELECT  MAX(lastModified) FROM VERSIONS WHERE username = ? AND name = V.name AND path = V.path)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_USER_FOLDER], nullptr);
 
-	query = "SELECT count(*) FROM FILES where username = '?' AND path = '?' AND name = '?'";
+	query = "SELECT count(*) FROM FILES where username = ? AND path = ? AND name = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[USER_FILE_EXISTS], nullptr);
 
-	query = "INSERT INTO FILES (name, path, username) VALUES ('?', '?', '?')";
+	query = "INSERT INTO FILES (name, path, username) VALUES (?, ?, ?)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[ADD_FILE], nullptr);
 
-	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '?'";
+	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[COUNT_USER_VERSIONS], nullptr);
 
-	query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '?'";
-
-	query = "SELECT salt FROM USERS where username = '?' and salt is not NULL";
+	query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_NEXT_BLOB_NAME], nullptr);
 
-	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('?', '?', '?', '?', '?')";
+	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(?, ?, ?, ?, ?)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[ADD_VERSION], nullptr);
 
-	query = "DELETE FROM VERSIONS WHERE username = '?' AND path = '?' AND name = '?'";
+	query = "DELETE FROM VERSIONS WHERE username = ? AND path = ? AND name = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[DELETE_VERSIONS], nullptr);
 
-	query = "DELETE FROM FILES WHERE username = '?' AND path = '?' AND name = '?'";
+	query = "DELETE FROM FILES WHERE username = ? AND path = ? AND name = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[DELETE_FILES], nullptr);
 
-	query = "UPDATE VERSIONS SET checksum = '?' WHERE Blob = ? AND username = '?'";
+	query = "UPDATE VERSIONS SET checksum = ? WHERE Blob = ? AND username = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[ADD_CHECKSUM], nullptr);
 
-	query = "SELECT path, name FROM VERSIONS V WHERE username = '?'AND Blob IS NULL AND lastModified = (\
-							SELECT MAX(lastModified) FROM VERSIONS WHERE username ='?' AND name = V.name AND path = V.path)";
+	query = "SELECT path, name FROM VERSIONS V WHERE username = ?AND Blob IS NULL AND lastModified = (\
+							SELECT MAX(lastModified) FROM VERSIONS WHERE username =? AND name = V.name AND path = V.path)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_DELETED_FILES], nullptr);
 
-	query = "SELECT Blob from VERSIONS WHERE username = '?' AND path = '?' AND name='?' AND lastModified='?'";
+	query = "SELECT Blob from VERSIONS WHERE username = ? AND path = ? AND name=? AND lastModified=?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_BLOB], nullptr);
 
 	query = "SELECT COUNT(*) FROM (\
-							SELECT Blob FROM VERSIONS WHERE username = '?' AND path = '?' AND name = '?' AND lastModified = (\
-								SELECT MAX(lastModified) FROM VERSIONS  WHERE username = '?' AND path = '?' AND name = '?')\
+							SELECT Blob FROM VERSIONS WHERE username = ? AND path = ? AND name = ? AND lastModified = (\
+								SELECT MAX(lastModified) FROM VERSIONS  WHERE username = ? AND path = ? AND name = ?)\
 						) WHERE Blob is not NULL";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[IS_DELETED], nullptr);
 
-	query = "SELECT folder FROM USERS WHERE username='?'";
+	query = "SELECT folder FROM USERS WHERE username=?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_USER_PATH], nullptr);
 
-	query = "SELECT Blob FROM VERSIONS WHERE username='?' AND path='?' AND name='?' AND Blob IS NOT NULL AND lastModified = (\
-		SELECT MAX(lastModified) FROM VERSIONS WHERE username='?' AND path='?' AND name='?' and Blob is not null)";
+	query = "SELECT Blob FROM VERSIONS WHERE username=? AND path=? AND name=? AND Blob IS NOT NULL AND lastModified = (\
+		SELECT MAX(lastModified) FROM VERSIONS WHERE username=? AND path=? AND name=? and Blob is not null)";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_LAST_BLOB], nullptr);
 
-	query = "SELECT MAX(lastModified) FROM VERSIONS WHERE username='?' AND path='?' AND name='?'";
+	query = "SELECT MAX(lastModified) FROM VERSIONS WHERE username=? AND path=? AND name=?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_BLOB_LAST_VERSION_DATE], nullptr);
 
-	query = "SELECT lastModified FROM VERSIONS WHERE username='?' AND Blob = ?";
+	query = "SELECT lastModified FROM VERSIONS WHERE username=? AND Blob = ?";
 	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[GET_BLOB_DATE], nullptr);
-
-	query = "SELECT salt FROM USERS where username = '?' and salt is not NULL";
-	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[1], nullptr);
-
-	query = "SELECT salt FROM USERS where username = '?' and salt is not NULL";
-	sqlite3_prepare_v2(database, query.c_str(), query.size(), &statements[1], nullptr);
 }
 
 sqlite3_stmt* DatabaseHandler::getStatement(int number) {
@@ -121,7 +113,6 @@ DatabaseHandler::DatabaseHandler()
 	database = nullptr;
 	if (sqlite3_open("PDSProject.db", &database) != SQLITE_OK) {
 		std::wcout << L"could not open/create the db" << std::endl;
-		// todo: throw exception
 		return;
 	}
 	statements = new sqlite3_stmt*[18];
@@ -133,8 +124,10 @@ DatabaseHandler::~DatabaseHandler()
 {
 	// here i need to disconnect from the database
 	std::cout << "des. dbhandler " << std::endl;
+	for (int i = 0; i < 18; i++) sqlite3_finalize(statements[i]);
 	sqlite3_close(database);
 	delete[] statements;
+	statements = nullptr;
 }
 
 /*
@@ -351,22 +344,20 @@ std::string DatabaseHandler::getUserFolder(std::string username, std::string bas
 	}
 
 	return returnFolder;
-}
-
-
-//TODO: CONTINUA A CREARE QUERY PRECOMPILATE DA QUI. 
+} 
 
 bool DatabaseHandler::existsFile(std::string username, std::string path, std::string fileName) {
 	
-	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path +"' AND name = '" + fileName + "'";
+	int number = -1;
+
+#ifndef PRECOMPILED
+	std::string query = "SELECT count(*) FROM FILES where username = '" + username + "' AND path = '" + path + "' AND name = '" + fileName + "'";
 	OutputDebugStringA(query.c_str());
 	OutputDebugStringA("\n");
 
 	std::cout << "|filename| = " << std::to_string(fileName.length()) << std::endl;
-
-	int number = -1;
 	char* error;
-	
+
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
@@ -379,7 +370,26 @@ bool DatabaseHandler::existsFile(std::string username, std::string path, std::st
 	}
 	else
 		std::cout << "number = " << std::to_string(number);
+#else
+	sqlite3_stmt* query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT count(*) FROM FILES where username = ? AND path =? AND name = ?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, fileName.c_str(), fileName.size(), SQLITE_STATIC);
 
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "ERRORE : sqlite code = " << rc << std::endl;
+		sqlite3_finalize(query);
+		return false;
+#endif
+	}
+	else
+	{
+		number = sqlite3_column_int(query, 0);
+		sqlite3_finalize(query);
+	}
+#endif // !PRECOMPILED
 	return number == 1;
 }
 
@@ -387,14 +397,13 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	std::lock_guard<std::mutex> lockguard(m);
 
 	if (this->existsFile(username, path, fileName)) throw std::exception("file already exists");
+	int max = 0;
 	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
 
+#ifndef PRECOMPILED
 	std::string query = "INSERT INTO FILES (name, path, username) VALUES ('" + fileName + "', '" + path + "', '" + username + "')";
 	char* error;
-	if (sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error) == SQLITE_LOCKED)
-	{
-
-	}
+	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		std::cout << "impossibile inserire in files! " << error << std::endl;
 		sqlite3_free(error);
@@ -403,14 +412,13 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 
 	// now i need to create the blob; how many blobs can i count for that user?
 	query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "'";
-	// todo: (for acid) DELETE FROM FILES WHERE name='filename' and path = 'path' AND username='username'
-	int numberOfBlobs = -1,max=-1;
+	int numberOfBlobs = -1, max = -1;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
-		
+
 		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
 	}, &numberOfBlobs, &error);
-	
+
 	if (error != nullptr) {
 		std::cout << error << std::endl;
 		sqlite3_free(error);
@@ -421,7 +429,7 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 	std::cout << "# of blob for " << username << " = " << numberOfBlobs << std::endl;
 
 	if (numberOfBlobs == 0) max = 0;
-	
+
 	else {
 		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
 		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
@@ -437,30 +445,15 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 		}
 
 	}
-	
+
 #ifdef DEBUG
 	std::cout << "so max is " << max << std::endl;
 #endif // DEBUG
-
-	std::string timestamp;
-	time_t t = time(0);
-	struct tm now;
-	if (EINVAL == localtime_s(&now, &t))
-		std::cout << "could not fill tm struct" << std::endl;
-	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
-	if (now.tm_hour < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_hour) + ":";
-	if (now.tm_min < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_min) + ":";
-	if (now.tm_sec < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_sec);
-
+	std::string timestamp = getTimestamp();
 #ifdef DEBUG
 	std::cout << "timestamp = " << timestamp << std::endl;
 #endif
-
-
-	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp +"', '" + std::to_string(max) +"' )";
+	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp + "', '" + std::to_string(max) + "' )";
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 #ifdef DEBUG
@@ -471,24 +464,84 @@ int DatabaseHandler::createFileForUser(std::string username, std::string path, s
 		throw std::exception("DbHandler:: createFileForUser-> no insert blob");
 	}
 
+#else
+	sqlite3_stmt *query;
+	sqlite3_prepare_v2(database, "INSERT INTO FILES (name, path, username) VALUES (?, ?, ?)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, fileName.c_str(), fileName.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 1, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	if (sqlite3_step(query) != SQLITE_DONE) {
+		sqlite3_finalize(query);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw std::exception("no insertion");
+	}
+	sqlite3_finalize(query);
+	sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM VERSIONS WHERE username=?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+
+	int count = -1;
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "Error while counting user blobs: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw std::exception("error while counting the blobs");
+	}
+	count = sqlite3_column_int(query, 0);
+	sqlite3_finalize(query);
+	if (count == 0) max = 0;
+	else {
+		sqlite3_prepare_v2(database, "SELECT MAX(Blob) FROM VERSIONS WHERE username = ?", -1, &query, nullptr);
+		sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+		if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+			std::cout << "Error while counting user blobs: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+			sqlite3_finalize(query);
+			sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+			throw std::exception("error while getting MAX(blob)");
+		}
+		max = sqlite3_column_int(query, 0) + 1;
+		sqlite3_finalize(query);
+	}
+
+	sqlite3_prepare_v2(database, "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(?, ?, ?, ?, ?)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, fileName.c_str(), fileName.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
+	std::string timestamp = getTimestamp();
+	sqlite3_bind_text(query, 4, timestamp.c_str(), timestamp.size(), SQLITE_STATIC);
+	sqlite3_bind_int(query, 5, max);
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+#ifdef DEBUG
+		std::cout << "Error while inserting into versions: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("Error while inserting into versions");
+	}
+	sqlite3_finalize(query);
+
+#endif // !PRECOMPILED
+
 	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
 	return max;
 }
 
-/* 
-	This function creates a new blob for a file. since it is only called from createFileForUser, it is wrong to try to get the mutex here
-*/
 int DatabaseHandler::createNewBlobForFile(std::string username, std::string path, std::string fileName) {
 	if (! this->existsFile(username, path, fileName)) throw std::exception("file does not exist");
+	std::lock_guard<std::mutex> lockguard(m);
 
-	int count = 1, max = -1;
-	char * error;
-	sqlite3_exec(database, "BEGIN EXCLUSIVE TRANSACTION", nullptr, nullptr, nullptr);
+	int count = -1, max = -1;
 
-
+	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+#ifndef PRECOMPILED
 	std::string query = "SELECT COUNT(*) FROM VERSIONS WHERE username = '" + username + "'";
+	char * error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
-		*((int*)data) = strtol(argv[0], nullptr, 10);	
+		*((int*)data) = strtol(argv[0], nullptr, 10);
 		return 0;
 	}, &count, &error);
 
@@ -501,32 +554,21 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 
 	if (count == 0) max = 0;
 	else {
-		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";	
+		query = "SELECT MAX(Blob) FROM VERSIONS WHERE username = '" + username + "'";
 		sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 			*((int*)data) = strtol(argv[0], nullptr, 10) + 1;
 			return 0;
 		}, &max, &error);
-		
+
 		if (error != nullptr) {
 			sqlite3_free(error);
 			sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 			throw std::exception("DbHandler:: createFileForUser-> no select max(blob)");
 		}
 	}
-	std::string timestamp;
-	time_t t = time(0);
-	struct tm now;
-	if (EINVAL == localtime_s(&now, &t))
-		std::cout << "could not fill tm struct" << std::endl;
-	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
-	if (now.tm_hour < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_hour) + ":";
-	if (now.tm_min < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_min) + ":";
-	if (now.tm_sec < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_sec);
+	std::string timestamp = getTimestamp();
 
-	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp+ "', " + std::to_string(max) + " )";
+	query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + fileName + "', '" + path + "', '" + username + "', '" + timestamp + "', " + std::to_string(max) + " )";
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 
 	if (error != nullptr) {
@@ -535,7 +577,55 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: createFileForUser-> no insert new blob");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM VERSIONS WHERE username=?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "Error while counting user blobs: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw std::exception("error while counting the blobs");
+	}
+	count = sqlite3_column_int(query, 0);
+	sqlite3_finalize(query);
+	if (count == 0) max = 0;
+	else {
+		sqlite3_prepare_v2(database, "SELECT MAX(Blob) FROM VERSIONS WHERE username = ?", -1, &query, nullptr);
+		sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+		if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+			std::cout << "Error while counting user blobs: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+			sqlite3_finalize(query);
+			sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+			throw std::exception("error while getting MAX(blob)");
+		}
+		max = sqlite3_column_int(query, 0) + 1;
+		sqlite3_finalize(query);
+	}
 
+	sqlite3_prepare_v2(database, "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(?, ?, ?, ?, ?)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, fileName.c_str(), fileName.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
+	std::string timestamp = getTimestamp();
+	sqlite3_bind_text(query, 4, timestamp.c_str(), timestamp.size(), SQLITE_STATIC);
+	sqlite3_bind_int(query, 5, max);
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+#ifdef DEBUG
+		std::cout << "Error while inserting into versions: sqlite code is " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("Error while inserting into versions");
+	}
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
 
 	return max;
@@ -543,38 +633,47 @@ int DatabaseHandler::createNewBlobForFile(std::string username, std::string path
 
 void DatabaseHandler::deleteFile(std::string username, std::string path, std::string filename)
 {
-	std::lock_guard<std::mutex> lg(m);
+	
 	if (!existsFile(username, path, filename)) throw std::exception("no file to delete");
 	if(isDeleted(username, path, filename)) throw std::exception("file already deleted");
-	
-	
-	time_t t = time(0); 
-	std::string timestamp = "";
-	struct tm now;
-	if (EINVAL == localtime_s(&now, &t))
-		std::cout << "could not fill tm struct" << std::endl;
-	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
-	if (now.tm_hour < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_hour) + ":";
-	if (now.tm_min < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_min) + ":";
-	if (now.tm_sec < 10) timestamp += '0';
-	timestamp += std::to_string(now.tm_sec);
 
-	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" +timestamp + "', NULL )";
-
+	std::lock_guard<std::mutex> lg(m);
+#ifndef PRECOMPILED
+	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + getTimestamp() + "', NULL )";
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
-		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: deleteFiles -> error while inserting NULL blob");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(?, ?, ?, ?, ?)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, filename.c_str(), filename.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
+	std::string timestamp = getTimestamp();
+	sqlite3_bind_text(query, 4, timestamp.c_str(), timestamp.size(), SQLITE_STATIC);
+	// since blob is NULL i do not bind it
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+#ifdef DEBUG
+		std::cout << "error while inserting null blob for " << path << filename << ". sqlite code = " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler:: deleteFiles -> error while inserting NULL blob");
+	}
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 }
 
 void DatabaseHandler::addVersion(std::string username, std::string path, std::string filename, std::string lastModified, int blob) 
 {
 	if (!existsFile(username, path, filename)) throw std::exception("the file does not exist");
+
+	std::lock_guard<std::mutex> lg(m);
+
+#ifndef PRECOMPILED
 	char* error;
 	std::string query = "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES('" + filename + "', '" + path + "', '" + username + "', '" + lastModified + "', " + std::to_string(blob) + " )";
 	std::cout << query << std::endl;
@@ -585,10 +684,29 @@ void DatabaseHandler::addVersion(std::string username, std::string path, std::st
 		sqlite3_free(error);
 		throw std::exception("DbHandler:: addVersion-> no insert new version");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "INSERT INTO VERSIONS(name, path, username, lastModified, Blob) VALUES(?, ?, ?, ?, ?)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, filename.c_str(), filename.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
+	std::string timestamp = getTimestamp();
+	sqlite3_bind_text(query, 4, timestamp.c_str(), timestamp.size(), SQLITE_STATIC);
+	sqlite3_bind_int(query, 5, blob);
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+#ifdef DEBUG
+		std::cout << "error while inserting blob for " << path << filename << ". sqlite code = " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler:: deleteFiles -> error while inserting blob");
+	}
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 }
 
 void DatabaseHandler::removeFile(std::string username, std::string path, std::string filename) {
-	std::lock_guard<std::mutex> lg(m);
+	
 	if (!existsFile(username, path, filename)) { 
 #ifdef  DEBUG
 		std::cout << "error : file not found" <<std::endl;
@@ -596,11 +714,14 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 		throw std::exception("no file to delete"); 
 	}
 	// the file exist
+	std::lock_guard<std::mutex> lg(m);
 
+	sqlite3_exec(database, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+
+#ifndef PRECOMPILED
 	char* error;
-	sqlite3_exec(database, "BEGIN EXCLUSIVE TRANSACTION", nullptr, nullptr, nullptr);
 
-	std::string query = "DELETE FROM VERSIONS WHERE username = '" + username + "' AND path = '" + path+"' AND name = '"+filename+"'";
+	std::string query = "DELETE FROM VERSIONS WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
 
 #ifdef DEBUG
 	OutputDebugStringA(query.c_str());
@@ -616,7 +737,7 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 
 		sqlite3_free(error);
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
-		throw std::exception("DbHandler:: removeFile -> error while deleting from FILES");
+		throw std::exception("DbHandler:: removeFile -> error while deleting from VERSIONS");
 	}
 
 	query = "DELETE FROM FILES WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "'";
@@ -636,6 +757,39 @@ void DatabaseHandler::removeFile(std::string username, std::string path, std::st
 		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler:: removeFile -> error while deleting from VERSIONS");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "DELETE FROM VERSIONS WHERE username = ? AND path = ? AND name = ?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+	
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+#ifdef  DEBUG
+		std::cout << "error : Could not delete the versions of " << path << filename << std::endl;
+#endif //  DEBUG
+		sqlite3_finalize(query);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw std::exception("DbHandler:: removeFile -> error while deleting from VERSIONS");
+	}
+
+	sqlite3_finalize(query);
+
+	sqlite3_prepare_v2(database, "DELETE FROM FILES WHERE username = ? AND path = ? AND name = ?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+#ifdef  DEBUG
+		std::cout << "error : Could not delete the versions of " << path << filename << std::endl;
+#endif //  DEBUG
+		sqlite3_finalize(query);
+		sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
+		throw std::exception("DbHandler:: removeFile -> error while deleting from FILES");
+	}
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 
 	sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr);
 }
@@ -648,6 +802,9 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 	}
 
 	std::string versions = "[";
+
+
+#ifndef PRECOMPILED
 	char* error;
 
 	std::string query = "SELECT lastModified FROM VERSIONS WHERE Blob is not NULL AND username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' ORDER BY lastModified DESC";
@@ -658,7 +815,7 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string* v = (std::string*)data;
 		std::string appendString =
-			"{ \""+ std::string(azColName[0]) +"\" : \""+ std::string(argv[0]) +"\" },";
+			"{ \"" + std::string(azColName[0]) + "\" : \"" + std::string(argv[0]) + "\" },";
 		v->append(appendString);
 		return 0;
 	}, &versions, &error);
@@ -669,12 +826,26 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 		throw std::exception("DbHandler:: getFileVersions -> error while selecting versions");
 	}
 	std::cout << "the query worked!";
-	if (versions[versions.size() - 1] == ',')
-		versions[versions.size() - 1] = ']';
-	else
-		versions += ']';
 	
+
 	std::cout << versions << std::endl;
+
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT lastModified FROM VERSIONS WHERE Blob is not NULL AND username = ? AND path = ? AND name = ? ORDER BY lastModified DESC", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+
+	while (sqlite3_step(query) == SQLITE_ROW) {
+		versions = versions.append("{ \"lastModified\":\"").append((char*)sqlite3_column_text(query, 0)).append("\"},");
+	}
+
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
+
+	if (versions[versions.size() - 1] == ',') versions[versions.size() - 1] = ']';
+	else versions += ']';
 
 	return versions;
 }
@@ -682,22 +853,42 @@ std::string DatabaseHandler::getFileVersions(std::string username, std::string p
 void DatabaseHandler::addChecksum(std::string username, int blob, std::string checksum)
 {
 	std::lock_guard<std::mutex> lg(m);
+
+#ifndef PRECOMPILED
 	std::string query = "UPDATE VERSIONS SET checksum = '" + checksum + "' WHERE Blob = " + std::to_string(blob) + " AND username = '" + username + "'";
 	char* error;
 	sqlite3_exec(database, query.c_str(), nullptr, nullptr, &error);
 	if (error != nullptr) {
 		sqlite3_free(error);
-		sqlite3_exec(database, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
 		throw std::exception("DbHandler::addChecksum -> error while inserting");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "UPDATE VERSIONS SET checksum = ? WHERE Blob = ? AND username = ?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, checksum.c_str(), checksum.size(), SQLITE_STATIC);
+	sqlite3_bind_int(query, 2, blob);
+	sqlite3_bind_text(query, 3, username.c_str(), username.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_DONE) {
+		sqlite3_finalize(query);
+#ifdef DEBUG
+		std::cout << "Error while adding checksum. sqlite code = " << rc << std::endl;
+#endif // DEBUG
+		throw std::exception("DbHandler::addChecksum -> error while inserting");
+	}
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 }
 
 std::string DatabaseHandler::getDeletedFiles(std::string username, std::string basePath)
 {
+	std::string result = "[";
+	
+#ifndef PRECOMPILED
 	std::string query = "SELECT path, name FROM VERSIONS V WHERE username = '" + username + "'AND Blob IS NULL AND lastModified = (\
 							SELECT MAX(lastModified) FROM VERSIONS WHERE username ='" + username + "' AND name = V.name AND path = V.path)";
-	
-	std::string result = "[";
+
+
 
 	std::string* params[2];
 	params[0] = &result;
@@ -707,7 +898,7 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		std::string* v = ((std::string**)data)[0];
 		std::string base = *((std::string**)data)[1];
-		std::string appendString = "{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \""+std::string(azColName[1])+"\":\""+std::string(argv[1])+"\" },";
+		std::string appendString = "{ \"" + std::string(azColName[0]) + "\" : \"" + base + std::string(argv[0]) + "\", \"" + std::string(azColName[1]) + "\":\"" + std::string(argv[1]) + "\" },";
 		v->append(appendString);
 		return 0;
 	}, params, &error);
@@ -716,6 +907,30 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getDeletedFiles -> error while selecting deleted files");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT path, name FROM VERSIONS V WHERE username = ? AND Blob IS NULL AND lastModified = (\
+							SELECT MAX(lastModified) FROM VERSIONS WHERE username =? AND name = V.name AND path = V.path)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, username.c_str(), username.size(), SQLITE_STATIC);
+
+	while (sqlite3_step(query) == SQLITE_ROW) {
+		result += '{';
+		for (int i = 0; i < sqlite3_column_count(query); i++) {
+			result = result.append("\"").append((char*)sqlite3_column_name(query, i)).append("\":");
+			result = result.append("\"").append((char*)sqlite3_column_text(query, i)).append("\", ");
+		}
+
+		if (result[result.size() - 1] == ',') result[result.size() - 1] = '}';
+		else result += '}';
+
+		result += ',';
+	}
+
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
+
+	
 	if (result[result.size() - 1] == ',')
 		result[result.size() - 1] = ']';
 	else
@@ -732,12 +947,15 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 	return ret;
 }
 
+// TODO: continue from here
+
 int DatabaseHandler::getBlob(std::string username, std::string path, std::string filename, std::string datetime)
 {
 	if (!existsFile(username, path, filename) || isDeleted(username, path, filename)) return -1;
-	
-	std::string query = "SELECT Blob from VERSIONS WHERE username = '"+username+"' AND path = '"+path+"' AND name='"+filename+"' AND lastModified='"+datetime+"'";	
 	int blob = -1;
+#ifndef PRECOMPILED
+	std::string query = "SELECT Blob from VERSIONS WHERE username = '" + username + "' AND path = '" + path + "' AND name='" + filename + "' AND lastModified='" + datetime + "'";
+
 	char* error;
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((int*)data) = strtol(argv[0], nullptr, 10);
@@ -748,14 +966,35 @@ int DatabaseHandler::getBlob(std::string username, std::string path, std::string
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getBlob-> error while executing select(blob)");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT Blob from VERSIONS WHERE username = ? AND path = ? AND name= ? AND lastModified=?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, datetime.c_str(), datetime.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while executing select(blob). sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getBlob-> error while executing select(blob)");
+	}
+
+	blob = sqlite3_column_int(query, 0);
+	sqlite3_finalize(query);
+
+#endif // !PRECOMPILED
 
 	return blob;
 }
 
 bool DatabaseHandler::isDeleted(std::string username, std::string path, std::string filename)
 {
-	
 	int validBlob = -1;
+	
+
+#ifndef PRECOMPILED
 	char* error;
 	std::string query = "SELECT COUNT(*) FROM (\
 							SELECT Blob FROM VERSIONS WHERE username = '" + username + "' AND path = '" + path + "' AND name = '" + filename + "' AND lastModified = (\
@@ -771,34 +1010,80 @@ bool DatabaseHandler::isDeleted(std::string username, std::string path, std::str
 		sqlite3_free(error);
 		throw std::exception("DbHandler::isDeleted-> error while checking if last blob is null");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+
+	// todo: check this query again. is it possible to use inner/outer query relationship to avoid binding the same things twice?
+	sqlite3_prepare_v2(database,  "SELECT COUNT(*) FROM (\
+							SELECT Blob FROM VERSIONS WHERE username = ? AND path = ? AND name = ? AND lastModified = (\
+								SELECT MAX(lastModified) FROM VERSIONS  WHERE username = ? AND path = ? AND name = ?)\
+						) WHERE Blob is not NULL", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 4, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 5, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 6, filename.c_str(), filename.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while seeing if last blob is not null. sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getBlob-> error while seeing if last blob is not null");
+	}
+
+	validBlob = sqlite3_column_int(query, 0);
+	sqlite3_finalize(query);
+
+#endif // !PRECOMPILED
 	return validBlob == 0;
 }
 
 std::string DatabaseHandler::getPath(std::string username)
 {
-	char* error;
 	std::string path = "";
-	std::string query = "SELECT folder FROM USERS WHERE username='"+username+"'";
+
+#ifndef PRECOMPILED
+	char* error;
+	std::string query = "SELECT folder FROM USERS WHERE username='" + username + "'";
 	sqlite3_exec(database, query.c_str(), [](void* data, int argc, char **argv, char **azColName)->int {
 		*((std::string*)data) += argv[0];
 		return 0;
 	}, &path, &error);
 
-	
+
 	if (error != nullptr) {
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getPath-> error while searchng for path");
 	}
-	else if(path == "")
+	else if (path == "")
 		throw std::exception("username does not exist");
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT folder FROM USERS WHERE username=?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while getting user folder. sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getPath-> error while getting user folder");
+	}
+	path += (char*)sqlite3_column_text(query, 0);
+#endif // !PRECOMPILED
 	return path;
 }
 
 int DatabaseHandler::getLastBlob(std::string username, std::string path, std::string filename) {
-	char* error;
+	
 	int blob = -1;
 	if (!existsFile(username, path, filename)) return -1;
-	std::string query = "SELECT Blob FROM VERSIONS WHERE username='" + username + "' AND path='"+path+"' AND name='"+filename+"' AND Blob IS NOT NULL AND lastModified = (\
+
+#ifndef PRECOMPILED
+	char* error;
+	std::string query = "SELECT Blob FROM VERSIONS WHERE username='" + username + "' AND path='" + path + "' AND name='" + filename + "' AND Blob IS NOT NULL AND lastModified = (\
 		SELECT MAX(lastModified) FROM VERSIONS WHERE username='" + username + "' AND path='" + path + "' AND name='" + filename + "' and Blob is not null)";
 
 	OutputDebugStringA(query.c_str()); OutputDebugStringA("\n");
@@ -812,15 +1097,43 @@ int DatabaseHandler::getLastBlob(std::string username, std::string path, std::st
 	if (error != nullptr) {
 		std::cout << error << std::endl;
 		sqlite3_free(error);
-		throw std::exception("DbHandler::getPath-> error while searchng for path");
+		throw std::exception("DbHandler::getLastBlob-> error while selecting last blob");
 	}
 	std::cout << "blob = " << std::to_string(blob) << std::endl;
+#else
+	sqlite3_stmt *query = nullptr;
+	// todo: check this query again. is it possible to use inner/outer query relationship to avoid binding the same things twice?
+	sqlite3_prepare_v2(database, "SELECT Blob FROM VERSIONS WHERE username=? AND path=? AND name=? AND Blob IS NOT NULL AND lastModified = (\
+		SELECT MAX(lastModified) FROM VERSIONS WHERE username=? AND path=? AND name=? and Blob is not null)", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 4, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 5, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 6, filename.c_str(), filename.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while selecting last blob. sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getLastBlob-> error while selecting last blob");
+	}
+
+	blob = sqlite3_column_int(query, 0);
+	sqlite3_finalize(query);
+
+#endif // !PRECOMPILED
+
 	return blob;
 }
 
 std::string DatabaseHandler::getLastVersion(std::string username, std::string path, std::string filename) {
-	char* error;
 	std::string version;
+	
+#ifndef PRECOMPILED
+	char* error;
+
 	if (!existsFile(username, path, filename)) return "";
 	std::string query = "SELECT MAX(lastModified) FROM VERSIONS WHERE username='" + username + "' AND path='" + path + "' AND name='" + filename + "'";
 
@@ -835,15 +1148,33 @@ std::string DatabaseHandler::getLastVersion(std::string username, std::string pa
 	if (error != nullptr) {
 		std::cout << error << std::endl;
 		sqlite3_free(error);
-		throw std::exception("DbHandler::getPath-> error while searchng for path");
+		throw std::exception("DbHandler::getPath-> error while selecting last modification for a file");
 	}
-	
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT MAX(lastModified) FROM VERSIONS WHERE username=? AND path=? AND name=?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 2, path.c_str(), path.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
+
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while selecting last modification for a file. sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getLastBlob->error while selecting last modification for a file");
+	}
+	version += (char*)sqlite3_column_text(query, 0);
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
 	return version;
 }
 
 std::string DatabaseHandler::getBlobVersion(std::string username, int blob) {
-	char* error;
 	std::string version = "";
+	
+#ifndef PRECOMPILED
+	char* error;
 	std::string query = "SELECT lastModified FROM VERSIONS WHERE username='" + username + "' AND Blob = " + std::to_string(blob);
 	// blob is unique for each user -> i get just one value of lastModified
 
@@ -858,8 +1189,23 @@ std::string DatabaseHandler::getBlobVersion(std::string username, int blob) {
 		sqlite3_free(error);
 		throw std::exception("DbHandler::getPath-> error while searchng for path");
 	}
+#else
+	sqlite3_stmt *query = nullptr;
+	sqlite3_prepare_v2(database, "SELECT lastModified FROM VERSIONS WHERE username=? AND Blob =?", -1, &query, nullptr);
+	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
+	sqlite3_bind_int(query, 2, blob);
 
-	return version;
+	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
+#ifdef DEBUG
+		std::cout << "error while selecting last modification for a blob. sqlite error was " << rc << std::endl;
+#endif // DEBUG
+		sqlite3_finalize(query);
+		throw std::exception("DbHandler::getLastBlob->error while selecting last modification for a blob");
+	}
+	version += (char*)sqlite3_column_text(query, 0);
+	sqlite3_finalize(query);
+#endif // !PRECOMPILED
+return version;
 }
 
 std::string DatabaseHandler::getRandomString(int digitN) {
@@ -904,7 +1250,7 @@ std::string DatabaseHandler::updateCookie(std::string username)
 	std::string query = "UPDATE USERS SET cookie = '?', cookieExpiration = ? WHERE username = '?'";
 	sqlite3_stmt* stmt;
 
-	if (sqlite3_prepare_v2(database, query.c_str(), query.size(), &stmt, nullptr) != SQLITE_OK) {
+	if (sqlite3_prepare_v2(database, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
 		
 #ifdef DEBUG	
 		std::cout << "error while praparing the query to upate cookie";
@@ -925,6 +1271,7 @@ std::string DatabaseHandler::updateCookie(std::string username)
 		return nullptr;
 	}
 	// if done, it means that it has updated out table. yeah!
+	sqlite3_finalize(stmt);
 	return cookie;
 }
 
@@ -941,7 +1288,7 @@ std::string DatabaseHandler::getUserFromCookie(std::string cookie) {
 
 	sqlite3_bind_text(stmt, 1, cookie.c_str(), cookie.size(), SQLITE_STATIC);
 
-	if (sqlite3_step(stmt) != SQLITE_DONE) { // since cookie is UNIQUE, i can assume it's the last element. if present
+	if (sqlite3_step(stmt) != SQLITE_ROW) { 
 		sqlite3_finalize(stmt);
 		return nullptr;
 	}
@@ -964,4 +1311,24 @@ std::string DatabaseHandler::getUserFromCookie(std::string cookie) {
 		return nullptr;
 	else
 		return user;	
+}
+
+std::string DatabaseHandler::getTimestamp() {
+	time_t t = time(0);
+	std::string timestamp = "";
+	struct tm now;
+	if (EINVAL == localtime_s(&now, &t)) { // should never happen since t is automatically created 3 lines before
+#ifdef DEBUG
+		std::cout << "could not fill tm struct" << std::endl;
+#endif // DEBUG
+		return "";
+	}
+	timestamp += std::to_string((now.tm_year + 1900)) + "-" + std::to_string((now.tm_mon + 1)) + '-' + std::to_string(now.tm_mday) + ' ';
+	if (now.tm_hour < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_hour) + ":";
+	if (now.tm_min < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_min) + ":";
+	if (now.tm_sec < 10) timestamp += '0';
+	timestamp += std::to_string(now.tm_sec);
+	return timestamp;
 }

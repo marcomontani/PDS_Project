@@ -188,10 +188,10 @@ public:
 	/*
 		if it exists, it return the username associated with the passed cookie
 		@param : cookie
-
-
 	*/
 	std::string getUserFromCookie(std::string cookie);
+
+	std::string getTimestamp();
 
 };
 
