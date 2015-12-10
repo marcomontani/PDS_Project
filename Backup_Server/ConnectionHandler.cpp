@@ -206,6 +206,9 @@ void ConnectionHandler::uploadFile() {
 	}
 	delete[] buffer;
 	// it is all ok
+#ifdef DEBUG
+	std::cout << "upload of the file was ok" << std::endl;
+#endif
 }
 
 
