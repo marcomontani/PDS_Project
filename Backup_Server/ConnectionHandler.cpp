@@ -941,3 +941,40 @@ void ConnectionHandler::setUserPath() {
 	if (userPath.size() != 0) folderPath = userPath;
 	// else the path is the default one that the user sent the time he connected. just in case.
 }
+
+void ConnectionHandler::getCookie() {
+	if (!logged && user.size() == 0) return;
+	std::string cookie;
+	try {
+		cookie = dbHandler->updateCookie(user);
+	}
+	catch (std::exception) {
+		send(connectedSocket, "ERR", 4, 0);
+	}
+	send(connectedSocket, cookie.c_str(), cookie.length(), 0);
+}
+
+void ConnectionHandler::logWithCookie() {
+	std::string cookie;
+	char* buffer = new char[50]; // size of my cookie
+
+	int ricevuti = 0;
+	while (ricevuti < 50) {
+		int letti = recv(connectedSocket, buffer+ricevuti, 50-ricevuti, 0);
+		ricevuti += letti;
+	}
+	
+	cookie += buffer;
+	delete[] buffer;
+
+	try {
+		user = dbHandler->getUserFromCookie(cookie);
+		send(connectedSocket, "OK", 2, 0);
+	}
+	catch (std::exception e) {
+#ifdef DEBUG
+		std::cout << "exception thrown in logWithCookie: " << e.what() << std::endl;
+#endif
+		send(connectedSocket, "ERR", 3, 0);
+	}
+}
