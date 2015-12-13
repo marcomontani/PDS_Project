@@ -118,9 +118,11 @@ DatabaseHandler::DatabaseHandler()
 	statements = new sqlite3_stmt*[18];
 	//prepareStatements();
 
-	sqlite3_trace(database, [](void* foo, const char* stmt) {
-		std::cout << stmt << std::endl;
-	}, NULL);
+#ifdef DEBUG
+	sqlite3_trace(database, [](void* foo, const char* statement) {
+		std::cout << statement << std::endl;
+	}, nullptr);
+#endif // DEBUG
 
 }
 
@@ -955,7 +957,7 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 			if (i == 0)
 				result = result.append("\"").append(basePath).append((char*)sqlite3_column_text(query, i)).append("\", ");
 			else
-				result = result.append("\"").append((char*)sqlite3_column_text(query, i)).append("\", ");
+			result = result.append("\"").append((char*)sqlite3_column_text(query, i)).append("\", ");
 		}
 
 		if (result[result.size() - 1] == ',') result[result.size() - 1] = '}';
@@ -1012,8 +1014,6 @@ int DatabaseHandler::getBlob(std::string username, std::string path, std::string
 	sqlite3_bind_text(query, 3, filename.c_str(), filename.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 4, datetime.c_str(), datetime.size(), SQLITE_STATIC);
 
-	
-
 	if (int rc = sqlite3_step(query) != SQLITE_ROW) {
 #ifdef DEBUG
 		std::cout << "error while executing select(blob). sqlite error was " << rc << std::endl;
@@ -1022,7 +1022,6 @@ int DatabaseHandler::getBlob(std::string username, std::string path, std::string
 		sqlite3_finalize(query);
 		throw std::exception("DbHandler::getBlob-> error while executing select(blob)");
 	}
-
 	blob = sqlite3_column_int(query, 0);
 	sqlite3_finalize(query);
 
@@ -1326,14 +1325,14 @@ std::string DatabaseHandler::getUserFromCookie(std::string cookie) {
 #ifdef DEBUG	
 		std::cout << "error while praparing the query to retrive username from cookie";
 #endif
-		return nullptr;
+		throw std::exception("error while getting user for the query");
 	}
 
 	sqlite3_bind_text(stmt, 1, cookie.c_str(), cookie.size(), SQLITE_STATIC);
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) { 
 		sqlite3_finalize(stmt);
-		return nullptr;
+		throw std::exception("no such cookie");
 	}
 
 	std::string user;
@@ -1351,7 +1350,7 @@ std::string DatabaseHandler::getUserFromCookie(std::string cookie) {
 	sqlite3_finalize(stmt);
 
 	if (std::to_string(time(0)).compare(expires) > 0)
-		return nullptr;
+		throw std::exception("validity of the cookie is expired");
 	else
 		return user;	
 }

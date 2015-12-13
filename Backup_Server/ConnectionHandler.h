@@ -40,6 +40,8 @@ private:
 	void getUserPath();
 	void downloadLastVersion();
 	void setUserPath();
+	void getCookie();
+	void logWithCookie();
 	// internal functions
 	void senderror();
 	std::string receiveString(unsigned int);
