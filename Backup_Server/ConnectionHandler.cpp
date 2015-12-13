@@ -549,6 +549,8 @@ void ConnectionHandler::downloadLastVersion() {
 	if (path.find(folderPath.c_str(), 0) == std::string::npos) // we have a problem: the file is not where it should be
 	{
 		std::cout << "Impossible to find folderPath into path" << std::endl;
+		std::cout << "folderPath  = " << folderPath <<std::endl;
+		std::cout << "Path = " << path << std::endl;
 		send(connectedSocket, "ERR", 3, 0);
 		return;
 	}

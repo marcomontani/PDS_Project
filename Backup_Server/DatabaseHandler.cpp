@@ -117,6 +117,11 @@ DatabaseHandler::DatabaseHandler()
 	}
 	statements = new sqlite3_stmt*[18];
 	//prepareStatements();
+
+	sqlite3_trace(database, [](void* foo, const char* stmt) {
+		std::cout << stmt << std::endl;
+	}, NULL);
+
 }
 
 
@@ -165,13 +170,14 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 	sqlite3_prepare_v2(database, "INSERT INTO USERS (username, password, folder, salt) VALUES (?, ?, ?, ?)", -1, &query, nullptr);
 	sqlite3_bind_text(query, 1, username.c_str(), username.size(), SQLITE_STATIC);
 	sqlite3_bind_text(query, 2, pass.c_str(), pass.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 3, pass.c_str(), pass.size(), SQLITE_STATIC);
-	sqlite3_bind_text(query, 4, baseDir.c_str(), baseDir.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 3, baseDir.c_str(), baseDir.size(), SQLITE_STATIC);
+	sqlite3_bind_text(query, 4, salt.c_str(), salt.size(), SQLITE_STATIC);
 
 	if (int rc =  sqlite3_step(query) != SQLITE_DONE) { // something went wrong
 		std::string msg("impossible to create the new user. errcode = ");
 #ifdef DEBUG
 		std::cout << msg << rc << std::endl;
+		std::cout << sqlite3_errmsg(database) << std::endl;
 #endif // DEBUG
 		throw std::exception(msg.c_str());
 	}
@@ -944,8 +950,12 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 	while (sqlite3_step(query) == SQLITE_ROW) {
 		result += '{';
 		for (int i = 0; i < sqlite3_column_count(query); i++) {
+			
 			result = result.append("\"").append((char*)sqlite3_column_name(query, i)).append("\":");
-			result = result.append("\"").append((char*)sqlite3_column_text(query, i)).append("\", ");
+			if (i == 0)
+				result = result.append("\"").append(basePath).append((char*)sqlite3_column_text(query, i)).append("\", ");
+			else
+				result = result.append("\"").append((char*)sqlite3_column_text(query, i)).append("\", ");
 		}
 
 		if (result[result.size() - 1] == ',') result[result.size() - 1] = '}';
@@ -970,6 +980,9 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 		if (result[i] != '\\') ret += result[i];
 		else ret += "\\\\";
 	}
+
+
+	std::cout << ret << std::endl;
 
 	return ret;
 }
