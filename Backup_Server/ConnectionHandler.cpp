@@ -369,12 +369,6 @@ void ConnectionHandler::getDeletedFiles()
 	send(connectedSocket, (char*)&dimension , sizeof(int), 0);
 	send(connectedSocket, deletedFiles.c_str(), deletedFiles.size(), 0);
 
-	#ifdef DEBUG
-		std::cout << std::endl << deletedFiles << std::endl;
-	#endif // DEBUG
-
-	
-
 }
 
 void ConnectionHandler::downloadPreviousVersion()
@@ -584,16 +578,26 @@ void ConnectionHandler::downloadLastVersion() {
 		struct stat s;
 		stat(readPath.c_str(), &s);
 		int fdim = s.st_size;
-		std::cout << "the file has " << std::to_string(fdim) << std::endl;
+		std::cout << "the file has " << std::to_string(fdim) << "bytes " << std::endl;
 		send(connectedSocket, (char*)&fdim, sizeof(int), 0);
 
 		std::ifstream reader(readPath, std::ios::binary);
-		char *buffer = new char[1024];
+		char *buffer = new char[1024*1024];
+#ifdef DEBUG
+		std::cout << "download begun" << std::endl;
+#endif // DEBUG
+		int sent = 0;
 		while (!reader.eof()) {
-			reader.read(buffer, 1024);
-			send(connectedSocket, (char*)buffer, reader.gcount(), 0);
+			reader.read(buffer, 1024*1024);
+			sent += send(connectedSocket, (char*)buffer, reader.gcount(), 0);
+#ifdef DEBUG
+			std::cout << "sent " << std::to_string(sent) << "/" << std::to_string(fdim) << std::endl;
+#endif // DEBUG
 		}
 		reader.close();
+#ifdef DEBUG
+		std::cout << "download terminated" << std::endl;
+#endif // DEBUG
 
 		recv(connectedSocket, buffer, 5, 0);
 

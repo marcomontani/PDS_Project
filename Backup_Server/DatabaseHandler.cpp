@@ -144,10 +144,9 @@ DatabaseHandler::~DatabaseHandler()
 void DatabaseHandler::registerUser(std::string username, std::string password, std::string baseDir) {
 	std::string salt = this->getRandomString(50);
 	EncryptionHandler ea;
-	ea.update(password + salt);
-
+	std::string pass = ea.from_string(password + salt);
 #ifndef PRECOMPILED
-	std::string query = "INSERT INTO USERS (username, password, folder, salt) VALUES ('" + username + "', '" + ea.final() + "', '" + baseDir + "', '" + salt + "')";
+	std::string query = "INSERT INTO USERS (username, password, folder, salt) VALUES ('" + username + "', '" + pass + "', '" + baseDir + "', '" + salt + "')";
 
 	char* error = NULL;
 	// note : define precompiled queries or check for avoid SQL INJECTION
@@ -166,7 +165,7 @@ void DatabaseHandler::registerUser(std::string username, std::string password, s
 		std::cout << "db handler : utente loggato correttamente" << std::endl;
 #else
 	// "INSERT INTO USERS (username, password, folder, salt) VALUES ('" + username + "', '" + ea.final() + "', '" + baseDir + "', '" + salt + "')"
-	std::string pass = ea.final();
+	
 
 	sqlite3_stmt* query = nullptr; 
 	sqlite3_prepare_v2(database, "INSERT INTO USERS (username, password, folder, salt) VALUES (?, ?, ?, ?)", -1, &query, nullptr);
@@ -250,14 +249,12 @@ bool DatabaseHandler::logUser(std::string username, std::string password) {
 		sqlite3_finalize(query);
 		return false;
 	}
-	
-	ea.update(password + salt);
 
 	std::string pass;
 	pass += (char*) sqlite3_column_text(query, 0);
 
 	sqlite3_finalize(query);
-	return (pass.compare(ea.final()) == 0);
+	return (pass.compare(ea.from_string(password + salt)) == 0);
 #endif // !PRECOMPILED
 
 	
@@ -983,8 +980,9 @@ std::string DatabaseHandler::getDeletedFiles(std::string username, std::string b
 		else ret += "\\\\";
 	}
 
-
+#ifdef DEBUG
 	std::cout << ret << std::endl;
+#endif // DEBUG
 
 	return ret;
 }
